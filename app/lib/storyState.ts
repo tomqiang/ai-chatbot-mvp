@@ -12,6 +12,8 @@ export interface StoryEntry {
   userEvent: string
   storyText: string
   createdAt: string
+  title?: string // Optional for backward compatibility
+  suggestions?: string[] // Optional: 5 suggestions for tomorrow's event
 }
 
 const DATA_DIR = path.join(process.cwd(), 'data')

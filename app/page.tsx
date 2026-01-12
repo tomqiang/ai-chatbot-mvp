@@ -1,25 +1,42 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import StoryEntry from './components/ChatMessage'
-import StoryInput from './components/ChatInput'
+import StoryHeader from './components/StoryHeader'
+import StoryComposer from './components/StoryComposer'
+import StoryEntry from './components/StoryEntry'
+import StorySnapshot from './components/StorySnapshot'
+import EmptyState from './components/EmptyState'
 
 interface StoryEntryData {
   day: number
   userEvent: string
   storyText: string
   createdAt: string
+  title?: string // Optional for backward compatibility
+  suggestions?: string[] // Optional: suggestions for tomorrow
+}
+
+interface StoryState {
+  day: number
+  summary: string
+  updatedAt?: string
 }
 
 export default function Home() {
   const [entries, setEntries] = useState<StoryEntryData[]>([])
+  const [snapshotState, setSnapshotState] = useState<StoryState>({
+    day: 0,
+    summary: '',
+  })
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [composerValue, setComposerValue] = useState('')
   const entriesEndRef = useRef<HTMLDivElement>(null)
 
-  // Load existing story entries on mount
+  // Load existing story entries and state on mount
   useEffect(() => {
     loadStory()
+    loadState()
   }, [])
 
   const scrollToBottom = () => {
@@ -27,7 +44,9 @@ export default function Home() {
   }
 
   useEffect(() => {
-    scrollToBottom()
+    if (entries.length > 0) {
+      scrollToBottom()
+    }
   }, [entries])
 
   const loadStory = async () => {
@@ -42,7 +61,23 @@ export default function Home() {
     }
   }
 
-  const handleSendEvent = async (userEvent: string, allowFinal: boolean) => {
+  const loadState = async () => {
+    try {
+      const response = await fetch('/api/state')
+      if (response.ok) {
+        const data = await response.json()
+        setSnapshotState({
+          day: data.day || 0,
+          summary: data.summary || '',
+          updatedAt: data.updatedAt,
+        })
+      }
+    } catch (error) {
+      console.error('Error loading state:', error)
+    }
+  }
+
+  const handleGenerate = async (userEvent: string, allowFinal: boolean) => {
     if (!userEvent.trim() || isLoading) return
 
     setIsLoading(true)
@@ -67,11 +102,22 @@ export default function Home() {
 
       const data = await response.json()
       
+      // Update snapshot state from POST response
+      if (data.summary !== undefined) {
+        setSnapshotState({
+          day: data.day,
+          summary: data.summary,
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        })
+      }
+      
       // Add new entry to the list
       const newEntry: StoryEntryData = {
         day: data.day,
         userEvent,
         storyText: data.storyText,
+        title: data.title,
+        suggestions: data.suggestions,
         createdAt: new Date().toISOString(),
       }
       setEntries((prev) => [...prev, newEntry])
@@ -83,41 +129,67 @@ export default function Home() {
     }
   }
 
+  const handleSuggestionSelect = (suggestion: string) => {
+    setComposerValue(suggestion)
+  }
+
+  const currentDay = entries.length > 0 ? entries[entries.length - 1].day : 0
+
   return (
-    <main className="chat-container">
-      <div className="chat-header">
-        <h1>寻找「月影宝石」</h1>
-        <p className="story-subtitle">每日故事生成器</p>
-      </div>
-      <div className="chat-messages">
-        {entries.length === 0 && !isLoading && (
-          <div className="story-empty">
-            <p>故事尚未开始。输入今日事件，开始你的奇幻之旅。</p>
-          </div>
-        )}
-        {entries.map((entry, index) => (
-          <StoryEntry key={index} entry={entry} />
-        ))}
-        {isLoading && (
-          <div className="story-entry">
-            <div className="story-day">生成中...</div>
-            <div className="message-content">
-              <div className="typing-indicator">
-                <span></span>
-                <span></span>
-                <span></span>
+    <div className="chronicle-app">
+      <StoryHeader currentDay={currentDay} />
+      
+      <main className="chronicle-main">
+        <div className="chronicle-content">
+          {/* Story Snapshot */}
+          <StorySnapshot
+            day={snapshotState.day}
+            summary={snapshotState.summary}
+            updatedAt={snapshotState.updatedAt}
+          />
+          
+          {/* Composer at top */}
+          <StoryComposer 
+            onGenerate={handleGenerate} 
+            disabled={isLoading}
+            initialValue={composerValue}
+            onValueChange={setComposerValue}
+          />
+          
+          {/* Error display */}
+          {error && (
+            <div className="chronicle-error">
+              <p>❌ {error}</p>
+            </div>
+          )}
+          
+          {/* Loading state */}
+          {isLoading && (
+            <div className="chronicle-loading">
+              <div className="writing-state">
+                <span className="writing-icon">✍️</span>
+                <span>Writing today's chapter...</span>
               </div>
             </div>
+          )}
+          
+          {/* Empty state */}
+          {entries.length === 0 && !isLoading && <EmptyState />}
+          
+          {/* Chronicle entries */}
+          <div className="chronicle-feed">
+            {entries.map((entry, index) => (
+              <StoryEntry 
+                key={index} 
+                entry={entry} 
+                onSuggestionSelect={handleSuggestionSelect}
+                isLatest={index === entries.length - 1}
+              />
+            ))}
+            <div ref={entriesEndRef} />
           </div>
-        )}
-        {error && (
-          <div className="story-error">
-            <p>❌ {error}</p>
-          </div>
-        )}
-        <div ref={entriesEndRef} />
-      </div>
-      <StoryInput onSend={handleSendEvent} disabled={isLoading} />
-    </main>
+        </div>
+      </main>
+    </div>
   )
 }

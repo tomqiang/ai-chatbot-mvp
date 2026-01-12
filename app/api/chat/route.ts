@@ -4,7 +4,7 @@ import {
   saveStoryState, 
   saveStoryEntry
 } from '@/app/lib/storyState'
-import { generateStory, updateSummary } from '@/app/lib/openaiHelper'
+import { generateStory, updateSummaryTitleAndSuggestions } from '@/app/lib/openaiHelper'
 
 export async function POST(request: NextRequest) {
   try {
@@ -73,18 +73,20 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 2: Update story summary
-    const newSummary = await updateSummary(
+    // Step 2: Update story summary, generate title, and generate suggestions (combined call)
+    const { summary: newSummary, title, suggestions } = await updateSummaryTitleAndSuggestions(
       state.summary,
       userEvent,
       storyText
     )
 
-    // Step 3: Save story entry
+    // Step 3: Save story entry with title and suggestions
     const entry = {
       day: currentDay,
       userEvent,
       storyText,
+      title,
+      suggestions,
       createdAt: new Date().toISOString(),
     }
     saveStoryEntry(entry)
@@ -94,10 +96,14 @@ export async function POST(request: NextRequest) {
     state.summary = newSummary
     saveStoryState(state)
 
-    // Return the new story entry
+    // Return the new story entry with updated state
     return NextResponse.json({
       day: currentDay,
+      title,
       storyText,
+      summary: newSummary,
+      suggestions,
+      updatedAt: new Date().toISOString(),
     })
   } catch (error: unknown) {
     console.error('Error generating story:', error)
