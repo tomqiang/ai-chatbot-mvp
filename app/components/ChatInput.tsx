@@ -2,18 +2,20 @@
 
 import { useState, KeyboardEvent } from 'react'
 
-interface ChatInputProps {
-  onSend: (message: string) => void
+interface StoryInputProps {
+  onSend: (message: string, allowFinal: boolean) => void
   disabled?: boolean
 }
 
-export default function ChatInput({ onSend, disabled }: ChatInputProps) {
+export default function StoryInput({ onSend, disabled }: StoryInputProps) {
   const [input, setInput] = useState('')
+  const [allowFinal, setAllowFinal] = useState(false)
 
   const handleSend = () => {
     if (input.trim() && !disabled) {
-      onSend(input)
+      onSend(input, allowFinal)
       setInput('')
+      setAllowFinal(false)
     }
   }
 
@@ -30,18 +32,29 @@ export default function ChatInput({ onSend, disabled }: ChatInputProps) {
         value={input}
         onChange={(e) => setInput(e.target.value)}
         onKeyDown={handleKeyPress}
-        placeholder="Type your message... (Press Enter to send)"
+        placeholder="今日事件（一句话即可）"
         disabled={disabled}
         rows={1}
         className="chat-input"
       />
-      <button
-        onClick={handleSend}
-        disabled={disabled || !input.trim()}
-        className="send-button"
-      >
-        Send
-      </button>
+      <div className="input-actions">
+        <label className="final-chapter-checkbox">
+          <input
+            type="checkbox"
+            checked={allowFinal}
+            onChange={(e) => setAllowFinal(e.target.checked)}
+            disabled={disabled}
+          />
+          <span>最终章节</span>
+        </label>
+        <button
+          onClick={handleSend}
+          disabled={disabled || !input.trim()}
+          className="send-button"
+        >
+          继续故事
+        </button>
+      </div>
     </div>
   )
 }

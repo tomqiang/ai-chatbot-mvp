@@ -47,6 +47,14 @@ body {
 .chat-header h1 {
   font-size: 24px;
   font-weight: 600;
+  margin: 0;
+}
+
+.story-subtitle {
+  font-size: 14px;
+  opacity: 0.9;
+  margin: 5px 0 0 0;
+  font-weight: 400;
 }
 
 .chat-messages {
@@ -193,6 +201,88 @@ body {
 }
 
 .send-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* Story-specific styles */
+.story-entry {
+  margin-bottom: 30px;
+  padding: 20px;
+  background: #f9f9f9;
+  border-radius: 12px;
+  border-left: 4px solid #667eea;
+}
+
+.story-day {
+  font-size: 16px;
+  font-weight: 600;
+  color: #667eea;
+  margin-bottom: 10px;
+}
+
+.story-user-event {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 15px;
+  padding: 8px 12px;
+  background: #fff;
+  border-radius: 6px;
+  border: 1px solid #e0e0e0;
+}
+
+.story-user-event strong {
+  color: #333;
+}
+
+.story-text {
+  font-size: 15px;
+  line-height: 1.8;
+  color: #333;
+  white-space: pre-wrap;
+  word-wrap: break-word;
+}
+
+.story-empty {
+  text-align: center;
+  padding: 40px 20px;
+  color: #999;
+  font-style: italic;
+}
+
+.story-error {
+  padding: 15px;
+  background: #fee;
+  border: 1px solid #fcc;
+  border-radius: 8px;
+  color: #c33;
+  margin: 10px 0;
+}
+
+.input-actions {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+}
+
+.final-chapter-checkbox {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: #666;
+  cursor: pointer;
+  user-select: none;
+}
+
+.final-chapter-checkbox input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+  cursor: pointer;
+  accent-color: #667eea;
+}
+
+.final-chapter-checkbox:has(input:disabled) {
   opacity: 0.5;
   cursor: not-allowed;
 }

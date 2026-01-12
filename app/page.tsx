@@ -1,38 +1,52 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
-import ChatMessage from './components/ChatMessage'
-import ChatInput from './components/ChatInput'
+import StoryEntry from './components/ChatMessage'
+import StoryInput from './components/ChatInput'
 
-interface Message {
-  role: 'user' | 'assistant'
-  content: string
+interface StoryEntryData {
+  day: number
+  userEvent: string
+  storyText: string
+  createdAt: string
 }
 
 export default function Home() {
-  const [messages, setMessages] = useState<Message[]>([
-    {
-      role: 'assistant',
-      content: 'Hello! I\'m your AI assistant. How can I help you today?',
-    },
-  ])
+  const [entries, setEntries] = useState<StoryEntryData[]>([])
   const [isLoading, setIsLoading] = useState(false)
-  const messagesEndRef = useRef<HTMLDivElement>(null)
+  const [error, setError] = useState<string | null>(null)
+  const entriesEndRef = useRef<HTMLDivElement>(null)
+
+  // Load existing story entries on mount
+  useEffect(() => {
+    loadStory()
+  }, [])
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    entriesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
   }
 
   useEffect(() => {
     scrollToBottom()
-  }, [messages])
+  }, [entries])
 
-  const handleSendMessage = async (content: string) => {
-    if (!content.trim() || isLoading) return
+  const loadStory = async () => {
+    try {
+      const response = await fetch('/api/chat')
+      if (response.ok) {
+        const data = await response.json()
+        setEntries(data.entries || [])
+      }
+    } catch (error) {
+      console.error('Error loading story:', error)
+    }
+  }
 
-    const userMessage: Message = { role: 'user', content }
-    setMessages((prev) => [...prev, userMessage])
+  const handleSendEvent = async (userEvent: string, allowFinal: boolean) => {
+    if (!userEvent.trim() || isLoading) return
+
     setIsLoading(true)
+    setError(null)
 
     try {
       const response = await fetch('/api/chat', {
@@ -41,30 +55,29 @@ export default function Home() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          messages: [...messages, userMessage].map((msg) => ({
-            role: msg.role,
-            content: msg.content,
-          })),
+          message: userEvent,
+          allowFinal,
         }),
       })
 
       if (!response.ok) {
-        throw new Error('Failed to get response')
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to generate story')
       }
 
       const data = await response.json()
-      const assistantMessage: Message = {
-        role: 'assistant',
-        content: data.message,
+      
+      // Add new entry to the list
+      const newEntry: StoryEntryData = {
+        day: data.day,
+        userEvent,
+        storyText: data.storyText,
+        createdAt: new Date().toISOString(),
       }
-      setMessages((prev) => [...prev, assistantMessage])
+      setEntries((prev) => [...prev, newEntry])
     } catch (error) {
       console.error('Error:', error)
-      const errorMessage: Message = {
-        role: 'assistant',
-        content: 'Sorry, I encountered an error. Please try again.',
-      }
-      setMessages((prev) => [...prev, errorMessage])
+      setError(error instanceof Error ? error.message : '生成故事时出错，请重试。')
     } finally {
       setIsLoading(false)
     }
@@ -73,14 +86,21 @@ export default function Home() {
   return (
     <main className="chat-container">
       <div className="chat-header">
-        <h1>AI Chatbot</h1>
+        <h1>寻找「月影宝石」</h1>
+        <p className="story-subtitle">每日故事生成器</p>
       </div>
       <div className="chat-messages">
-        {messages.map((message, index) => (
-          <ChatMessage key={index} message={message} />
+        {entries.length === 0 && !isLoading && (
+          <div className="story-empty">
+            <p>故事尚未开始。输入今日事件，开始你的奇幻之旅。</p>
+          </div>
+        )}
+        {entries.map((entry, index) => (
+          <StoryEntry key={index} entry={entry} />
         ))}
         {isLoading && (
-          <div className="message assistant">
+          <div className="story-entry">
+            <div className="story-day">生成中...</div>
             <div className="message-content">
               <div className="typing-indicator">
                 <span></span>
@@ -90,9 +110,14 @@ export default function Home() {
             </div>
           </div>
         )}
-        <div ref={messagesEndRef} />
+        {error && (
+          <div className="story-error">
+            <p>❌ {error}</p>
+          </div>
+        )}
+        <div ref={entriesEndRef} />
       </div>
-      <ChatInput onSend={handleSendMessage} disabled={isLoading} />
+      <StoryInput onSend={handleSendEvent} disabled={isLoading} />
     </main>
   )
 }
