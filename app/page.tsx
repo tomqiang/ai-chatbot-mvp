@@ -6,12 +6,15 @@ import StoryComposer from './components/StoryComposer'
 import StoryEntry from './components/StoryEntry'
 import StorySnapshot from './components/StorySnapshot'
 import EmptyState from './components/EmptyState'
+import RewriteModal from './components/RewriteModal'
 
 interface StoryEntryData {
   day: number
   userEvent: string
   storyText: string
   createdAt: string
+  revision?: number
+  updatedAt?: string
   title?: string // Optional for backward compatibility
   suggestions?: string[] // Optional: suggestions for tomorrow
 }
@@ -31,6 +34,8 @@ export default function Home() {
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [composerValue, setComposerValue] = useState('')
+  const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false)
+  const [isRewriting, setIsRewriting] = useState(false)
   const entriesEndRef = useRef<HTMLDivElement>(null)
 
   // Load existing story entries and state on mount
@@ -118,6 +123,7 @@ export default function Home() {
         storyText: data.storyText,
         title: data.title,
         suggestions: data.suggestions,
+        revision: 1,
         createdAt: new Date().toISOString(),
       }
       setEntries((prev) => [...prev, newEntry])
@@ -133,7 +139,69 @@ export default function Home() {
     setComposerValue(suggestion)
   }
 
+  const handleRewriteClick = () => {
+    setIsRewriteModalOpen(true)
+  }
+
+  const handleRewrite = async (newEvent: string) => {
+    setIsRewriting(true)
+    setError(null)
+
+    try {
+      const response = await fetch('/api/rewrite-latest', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          newEvent,
+        }),
+      })
+
+      if (!response.ok) {
+        const errorData = await response.json()
+        throw new Error(errorData.error || 'Failed to rewrite story')
+      }
+
+      const data = await response.json()
+      
+      // Update snapshot state
+      if (data.summary !== undefined) {
+        setSnapshotState({
+          day: data.day,
+          summary: data.summary,
+          updatedAt: data.updatedAt || new Date().toISOString(),
+        })
+      }
+      
+      // Update the latest entry in the list
+      setEntries((prev) => {
+        const updated = [...prev]
+        const lastIndex = updated.length - 1
+        if (lastIndex >= 0) {
+          updated[lastIndex] = {
+            ...updated[lastIndex],
+            userEvent: newEvent,
+            storyText: data.storyText,
+            title: data.title,
+            suggestions: data.suggestions,
+            revision: data.revision,
+            updatedAt: data.updatedAt,
+          }
+        }
+        return updated
+      })
+    } catch (error) {
+      console.error('Error:', error)
+      setError(error instanceof Error ? error.message : '重写失败，请稍后再试。')
+      throw error
+    } finally {
+      setIsRewriting(false)
+    }
+  }
+
   const currentDay = entries.length > 0 ? entries[entries.length - 1].day : 0
+  const latestEntry = entries.length > 0 ? entries[entries.length - 1] : null
 
   return (
     <div className="chronicle-app">
@@ -183,6 +251,7 @@ export default function Home() {
                 key={index} 
                 entry={entry} 
                 onSuggestionSelect={handleSuggestionSelect}
+                onRewrite={handleRewriteClick}
                 isLatest={index === entries.length - 1}
               />
             ))}
@@ -190,6 +259,17 @@ export default function Home() {
           </div>
         </div>
       </main>
+
+      {/* Rewrite Modal */}
+      {latestEntry && (
+        <RewriteModal
+          isOpen={isRewriteModalOpen}
+          currentEvent={latestEntry.userEvent}
+          onClose={() => setIsRewriteModalOpen(false)}
+          onRewrite={handleRewrite}
+          isRewriting={isRewriting}
+        />
+      )}
     </div>
   )
 }

@@ -3,7 +3,7 @@ import { loadStoryState } from '@/app/lib/storyState'
 
 export async function GET() {
   try {
-    const state = loadStoryState()
+    const state = await loadStoryState()
     
     // If day is 0, return friendly default message
     if (state.day === 0) {

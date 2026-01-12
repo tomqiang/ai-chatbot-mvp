@@ -282,6 +282,57 @@ function generateFallbackTitle(storyText: string): string {
   return '无题'
 }
 
+// Generate summary up to a specific day (for rewrite)
+export async function generateSummaryUpToDay(entries: Array<{ day: number; userEvent: string; storyText: string }>, upToDay: number): Promise<string> {
+  if (upToDay === 0 || upToDay === 1) {
+    return '一二与布布踏上寻找月影宝石的旅途，故事刚刚开始。'
+  }
+
+  // Get entries up to (upToDay - 1)
+  const relevantEntries = entries
+    .filter(e => e.day < upToDay)
+    .sort((a, b) => a.day - b.day)
+
+  if (relevantEntries.length === 0) {
+    return '一二与布布踏上寻找月影宝石的旅途，故事刚刚开始。'
+  }
+
+  // Build summary input from entries
+  const summaryInput = relevantEntries
+    .map(e => `第${e.day}天：${e.userEvent}\n${e.storyText.slice(0, 300)}`) // Truncate long stories
+    .join('\n\n')
+
+  const prompt = `请根据以下故事章节，生成一个2-3句话的权威摘要，涵盖从第1天到第${upToDay - 1}天的所有关键信息：
+
+${summaryInput}
+
+请输出2-3句话的摘要，只输出摘要，不要其他内容。`
+
+  const completion = await openai.chat.completions.create({
+    model,
+    messages: [
+      {
+        role: 'system',
+        content: '你负责生成简洁准确的故事摘要。'
+      },
+      {
+        role: 'user',
+        content: prompt
+      }
+    ],
+    temperature: 0.3,
+    max_tokens: 200,
+  })
+
+  const summary = completion.choices[0]?.message?.content?.trim()
+
+  if (!summary) {
+    throw new Error('No summary generated')
+  }
+
+  return summary
+}
+
 // Legacy function for backward compatibility (if needed)
 export async function updateSummary(
   oldSummary: string,

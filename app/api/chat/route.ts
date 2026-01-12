@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Load current story state
-    const state = loadStoryState()
+    const state = await loadStoryState()
     const currentDay = state.day + 1
 
     console.log(`Generating story for Day ${currentDay}, allowFinal: ${allowFinal}`)
@@ -89,12 +89,12 @@ export async function POST(request: NextRequest) {
       suggestions,
       createdAt: new Date().toISOString(),
     }
-    saveStoryEntry(entry)
+    await saveStoryEntry(entry)
 
     // Step 4: Update and save story state
     state.day = currentDay
     state.summary = newSummary
-    saveStoryState(state)
+    await saveStoryState(state)
 
     // Return the new story entry with updated state
     return NextResponse.json({
@@ -127,9 +127,9 @@ export async function POST(request: NextRequest) {
 // GET endpoint to retrieve all story entries
 export async function GET() {
   try {
-    const { loadStoryEntries } = await import('@/app/lib/storyState')
-    const entries = loadStoryEntries()
-    const state = loadStoryState()
+    const { loadStoryEntries, loadStoryState } = await import('@/app/lib/storyState')
+    const entries = await loadStoryEntries()
+    const state = await loadStoryState()
 
     return NextResponse.json({
       state,

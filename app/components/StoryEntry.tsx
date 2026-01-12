@@ -6,14 +6,17 @@ interface StoryEntryProps {
     userEvent: string
     storyText: string
     createdAt: string
+    revision?: number
+    updatedAt?: string
     title?: string // Optional for backward compatibility
     suggestions?: string[] // Optional: suggestions for tomorrow
   }
   onSuggestionSelect?: (suggestion: string) => void
-  isLatest?: boolean // Only show suggestions for the latest entry
+  onRewrite?: () => void
+  isLatest?: boolean // Only show suggestions and rewrite button for the latest entry
 }
 
-export default function StoryEntry({ entry, onSuggestionSelect, isLatest = false }: StoryEntryProps) {
+export default function StoryEntry({ entry, onSuggestionSelect, onRewrite, isLatest = false }: StoryEntryProps) {
   const formatDate = (dateString: string) => {
     const date = new Date(dateString)
     return date.toLocaleDateString('zh-CN', {
@@ -57,6 +60,14 @@ export default function StoryEntry({ entry, onSuggestionSelect, isLatest = false
         <button onClick={handleCopy} className="action-button copy-button">
           Copy Chapter
         </button>
+        {isLatest && onRewrite && (
+          <button onClick={onRewrite} className="action-button rewrite-button">
+            Rewrite Latest
+          </button>
+        )}
+        {entry.revision && entry.revision > 1 && (
+          <span className="revision-badge">Revision {entry.revision}</span>
+        )}
       </div>
       {isLatest && entry.suggestions && entry.suggestions.length > 0 && onSuggestionSelect && (
         <div className="entry-suggestions">
