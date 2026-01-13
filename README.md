@@ -14,7 +14,7 @@ A simple, deployable AI chatbot built with Next.js, React, and OpenAI API.
 
 - Node.js 18+ installed
 - OpenAI API key ([Get one here](https://platform.openai.com/api-keys))
-- Upstash Redis database (for persistent storage - required for deployment)
+- Redis database (for persistent storage - required for deployment)
 
 ## Setup
 
@@ -31,19 +31,12 @@ A simple, deployable AI chatbot built with Next.js, React, and OpenAI API.
    Then edit `.env` and add:
    ```
    OPENAI_API_KEY=your_openai_api_key_here
-   UPSTASH_REDIS_REST_URL=your_upstash_redis_rest_url_here
-   UPSTASH_REDIS_REST_TOKEN=your_upstash_redis_rest_token_here
+   REDIS_URL=your_redis_connection_string_here
    ```
    
-   **Note:** For local development, you can create a free Upstash Redis database:
-   1. Go to [Upstash Console](https://console.upstash.com/) (free account)
-   2. Create a new Redis database
-   3. Copy the `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to your `.env` file
-   
-   Or install via Vercel Marketplace:
-   1. Go to [Vercel Dashboard](https://vercel.com/dashboard) → Your Project
-   2. Go to Marketplace → Search "Upstash Redis"
-   3. Install and it will automatically add the environment variables
+   **Note:** For local development, you can:
+   1. Install Redis from [Vercel Marketplace](https://vercel.com/marketplace/redis) (recommended)
+   2. Or use any Redis provider and set `REDIS_URL` in your `.env` file
 
 3. **Run the development server:**
    ```bash
@@ -59,11 +52,11 @@ A simple, deployable AI chatbot built with Next.js, React, and OpenAI API.
 
 1. Push your code to GitHub
 2. Import your repository on [Vercel](https://vercel.com)
-3. Install Upstash Redis:
-   - Go to your project → Marketplace → Search "Upstash Redis"
-   - Click "Install" and it will automatically add `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN` to your environment variables
-   - Or create manually at [Upstash Console](https://console.upstash.com/) and add the variables
-4. Add your `OPENAI_API_KEY` in the environment variables section
+3. Install Redis from Vercel Marketplace:
+   - Go to your project → Marketplace → Search "Redis"
+   - Click "Install" and follow the setup
+   - The `REDIS_URL` environment variable will be automatically added to your project
+4. Add your `OPENAI_API_KEY` in the environment variables section (Settings → Environment Variables)
 5. Deploy!
 
 ### Deploy to Other Platforms

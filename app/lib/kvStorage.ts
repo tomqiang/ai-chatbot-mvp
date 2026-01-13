@@ -1,4 +1,4 @@
-import { Redis } from '@upstash/redis'
+import { createClient } from 'redis'
 
 // Redis keys
 const STATE_KEY = 'story:state'
@@ -22,23 +22,30 @@ export interface StoryEntry {
 }
 
 // Initialize Redis client
-let redis: Redis | null = null
+let redisClient: ReturnType<typeof createClient> | null = null
 
-function getRedisClient(): Redis {
-  if (!redis) {
-    const url = process.env.UPSTASH_REDIS_REST_URL
-    const token = process.env.UPSTASH_REDIS_REST_TOKEN
+async function getRedisClient() {
+  if (!redisClient) {
+    // Vercel Redis Marketplace sets REDIS_URL automatically
+    const redisUrl = process.env.REDIS_URL
 
-    if (!url || !token) {
-      throw new Error('Upstash Redis is not configured. Please set UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.')
+    if (!redisUrl) {
+      throw new Error(
+        'Redis is not configured. Please set REDIS_URL environment variable.\n' +
+        'If you installed Redis from Vercel Marketplace, the REDIS_URL should be automatically set.\n' +
+        'Check your Vercel project settings → Environment Variables to verify REDIS_URL is present.'
+      )
     }
 
-    redis = new Redis({
-      url,
-      token,
+    redisClient = createClient({ url: redisUrl })
+    
+    redisClient.on('error', (err: Error) => {
+      console.error('Redis Client Error:', err)
     })
+
+    await redisClient.connect()
   }
-  return redis
+  return redisClient
 }
 
 // Initialize default story state
@@ -52,11 +59,11 @@ function getDefaultState(): StoryState {
 // Load story state from Redis
 export async function loadStoryState(): Promise<StoryState> {
   try {
-    const client = getRedisClient()
-    const state = await client.get<StoryState>(STATE_KEY)
+    const client = await getRedisClient()
+    const stateJson = await client.get(STATE_KEY)
     
-    if (state) {
-      return state
+    if (stateJson) {
+      return JSON.parse(stateJson) as StoryState
     }
     
     // Initialize with default state
@@ -73,8 +80,8 @@ export async function loadStoryState(): Promise<StoryState> {
 // Save story state to Redis
 export async function saveStoryState(state: StoryState): Promise<void> {
   try {
-    const client = getRedisClient()
-    await client.set(STATE_KEY, state)
+    const client = await getRedisClient()
+    await client.set(STATE_KEY, JSON.stringify(state))
   } catch (error) {
     console.error('Error saving story state to Redis:', error)
     throw error
@@ -84,9 +91,14 @@ export async function saveStoryState(state: StoryState): Promise<void> {
 // Load all story entries from Redis
 export async function loadStoryEntries(): Promise<StoryEntry[]> {
   try {
-    const client = getRedisClient()
-    const entries = await client.get<StoryEntry[]>(ENTRIES_KEY)
-    return entries || []
+    const client = await getRedisClient()
+    const entriesJson = await client.get(ENTRIES_KEY)
+    
+    if (entriesJson) {
+      return JSON.parse(entriesJson) as StoryEntry[]
+    }
+    
+    return []
   } catch (error) {
     console.error('Error loading story entries from Redis:', error)
     return []
@@ -96,10 +108,10 @@ export async function loadStoryEntries(): Promise<StoryEntry[]> {
 // Save story entry to Redis
 export async function saveStoryEntry(entry: StoryEntry): Promise<void> {
   try {
-    const client = getRedisClient()
+    const client = await getRedisClient()
     const entries = await loadStoryEntries()
     entries.push(entry)
-    await client.set(ENTRIES_KEY, entries)
+    await client.set(ENTRIES_KEY, JSON.stringify(entries))
   } catch (error) {
     console.error('Error saving story entry to Redis:', error)
     throw error
@@ -109,7 +121,7 @@ export async function saveStoryEntry(entry: StoryEntry): Promise<void> {
 // Update existing story entry in Redis
 export async function updateStoryEntry(day: number, updatedEntry: Partial<StoryEntry>): Promise<void> {
   try {
-    const client = getRedisClient()
+    const client = await getRedisClient()
     const entries = await loadStoryEntries()
     const index = entries.findIndex(e => e.day === day)
     
@@ -118,7 +130,7 @@ export async function updateStoryEntry(day: number, updatedEntry: Partial<StoryE
     }
     
     entries[index] = { ...entries[index], ...updatedEntry }
-    await client.set(ENTRIES_KEY, entries)
+    await client.set(ENTRIES_KEY, JSON.stringify(entries))
   } catch (error) {
     console.error('Error updating story entry in Redis:', error)
     throw error
@@ -128,7 +140,7 @@ export async function updateStoryEntry(day: number, updatedEntry: Partial<StoryE
 // Get entry by day from Redis
 export async function getStoryEntryByDay(day: number): Promise<StoryEntry | null> {
   try {
-    const client = getRedisClient()
+    const client = await getRedisClient()
     const entries = await loadStoryEntries()
     return entries.find(e => e.day === day) || null
   } catch (error) {
