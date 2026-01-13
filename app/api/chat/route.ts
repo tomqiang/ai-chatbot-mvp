@@ -58,12 +58,16 @@ export async function POST(request: NextRequest) {
 
     console.log(`Generating story for Day ${currentDay}, allowFinal: ${allowFinal}`)
 
+    // Generate request ID for logging
+    const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+
     // Step 1: Generate story text
     const storyText = await generateStory(
       state.summary,
       userEvent,
       currentDay,
-      allowFinal
+      allowFinal,
+      { requestId }
     )
 
     if (!storyText || storyText.trim().length === 0) {
@@ -73,19 +77,21 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 2: Update story summary, generate title, and generate suggestions (combined call)
-    const { summary: newSummary, title, suggestions } = await updateSummaryTitleAndSuggestions(
+    // Step 2: Update story summary, generate title, and generate anchored suggestions
+    const { summary: newSummary, title, anchors, suggestions } = await updateSummaryTitleAndSuggestions(
       state.summary,
       userEvent,
-      storyText
+      storyText,
+      { day: currentDay, requestId }
     )
 
-    // Step 3: Save story entry with title and suggestions
+    // Step 3: Save story entry with title, anchors, and suggestions
     const entry = {
       day: currentDay,
       userEvent,
       storyText,
       title,
+      anchors,
       suggestions,
       createdAt: new Date().toISOString(),
     }
@@ -102,6 +108,7 @@ export async function POST(request: NextRequest) {
       title,
       storyText,
       summary: newSummary,
+      anchors,
       suggestions,
       updatedAt: new Date().toISOString(),
     })

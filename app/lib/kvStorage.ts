@@ -18,34 +18,74 @@ export interface StoryEntry {
   revision?: number
   updatedAt?: string
   title?: string
+  anchors?: {
+    a: string // specific place/object
+    b: string // unresolved clue/foreshadowing
+    c: string // character state/constraint
+  }
   suggestions?: string[]
 }
 
-// Initialize Redis client
+// Redis client singleton for serverless (reused across invocations in the same container)
 let redisClient: ReturnType<typeof createClient> | null = null
+let isConnecting = false
 
 async function getRedisClient() {
-  if (!redisClient) {
-    // Vercel Redis Marketplace sets REDIS_URL automatically
-    const redisUrl = process.env.REDIS_URL
+  // In serverless, we reuse the connection if it exists and is connected
+  if (redisClient && redisClient.isOpen) {
+    return redisClient
+  }
 
-    if (!redisUrl) {
-      throw new Error(
-        'Redis is not configured. Please set REDIS_URL environment variable.\n' +
-        'If you installed Redis from Vercel Marketplace, the REDIS_URL should be automatically set.\n' +
-        'Check your Vercel project settings → Environment Variables to verify REDIS_URL is present.'
-      )
+  // Prevent multiple simultaneous connection attempts
+  if (isConnecting && redisClient) {
+    // Wait for the connection to complete
+    while (!redisClient.isOpen && isConnecting) {
+      await new Promise(resolve => setTimeout(resolve, 100))
     }
+    if (redisClient.isOpen) {
+      return redisClient
+    }
+  }
 
-    redisClient = createClient({ url: redisUrl })
+  // Vercel Redis Marketplace sets REDIS_URL automatically
+  const redisUrl = process.env.REDIS_URL
+
+  if (!redisUrl) {
+    throw new Error(
+      'Redis is not configured. Please set REDIS_URL environment variable.\n' +
+      'If you installed Redis from Vercel Marketplace, the REDIS_URL should be automatically set.\n' +
+      'Check your Vercel project settings → Environment Variables to verify REDIS_URL is present.'
+    )
+  }
+
+  isConnecting = true
+
+  try {
+    redisClient = createClient({ 
+      url: redisUrl,
+      socket: {
+        // Serverless-friendly settings
+        reconnectStrategy: (retries) => {
+          if (retries > 3) {
+            return new Error('Too many reconnection attempts')
+          }
+          return Math.min(retries * 100, 1000)
+        },
+      },
+    })
     
     redisClient.on('error', (err: Error) => {
       console.error('Redis Client Error:', err)
     })
 
     await redisClient.connect()
+    isConnecting = false
+    return redisClient
+  } catch (error) {
+    isConnecting = false
+    redisClient = null
+    throw error
   }
-  return redisClient
 }
 
 // Initialize default story state

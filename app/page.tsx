@@ -7,6 +7,7 @@ import StoryEntry from './components/StoryEntry'
 import StorySnapshot from './components/StorySnapshot'
 import EmptyState from './components/EmptyState'
 import RewriteModal from './components/RewriteModal'
+import SettingsDrawer from './components/SettingsDrawer'
 
 interface StoryEntryData {
   day: number
@@ -16,6 +17,11 @@ interface StoryEntryData {
   revision?: number
   updatedAt?: string
   title?: string // Optional for backward compatibility
+  anchors?: {
+    a: string
+    b: string
+    c: string
+  }
   suggestions?: string[] // Optional: suggestions for tomorrow
 }
 
@@ -36,7 +42,22 @@ export default function Home() {
   const [composerValue, setComposerValue] = useState('')
   const [isRewriteModalOpen, setIsRewriteModalOpen] = useState(false)
   const [isRewriting, setIsRewriting] = useState(false)
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const entriesEndRef = useRef<HTMLDivElement>(null)
+
+  const handleDataCleared = () => {
+    // Reset all state
+    setEntries([])
+    setSnapshotState({
+      day: 0,
+      summary: '',
+    })
+    setComposerValue('')
+    setError(null)
+    
+    // Reload page to ensure clean state
+    window.location.reload()
+  }
 
   // Load existing story entries and state on mount
   useEffect(() => {
@@ -205,7 +226,10 @@ export default function Home() {
 
   return (
     <div className="chronicle-app">
-      <StoryHeader currentDay={currentDay} />
+      <StoryHeader 
+        currentDay={currentDay} 
+        onSettingsClick={() => setIsSettingsOpen(true)}
+      />
       
       <main className="chronicle-main">
         <div className="chronicle-content">
@@ -270,6 +294,13 @@ export default function Home() {
           isRewriting={isRewriting}
         />
       )}
+
+      {/* Settings Drawer */}
+      <SettingsDrawer
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onDataCleared={handleDataCleared}
+      />
     </div>
   )
 }

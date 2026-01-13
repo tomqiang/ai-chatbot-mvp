@@ -9,6 +9,11 @@ interface StoryEntryProps {
     revision?: number
     updatedAt?: string
     title?: string // Optional for backward compatibility
+    anchors?: {
+      a: string
+      b: string
+      c: string
+    }
     suggestions?: string[] // Optional: suggestions for tomorrow
   }
   onSuggestionSelect?: (suggestion: string) => void
@@ -69,6 +74,26 @@ export default function StoryEntry({ entry, onSuggestionSelect, onRewrite, isLat
           <span className="revision-badge">Revision {entry.revision}</span>
         )}
       </div>
+
+      {/* Anchors (only for latest entry) */}
+      {isLatest && entry.anchors && (
+        <div className="entry-anchors">
+          <div className="entry-anchors-label">Anchors:</div>
+          <div className="entry-anchors-list">
+            <span className="entry-anchor-item">
+              <strong>A:</strong> {entry.anchors.a}
+            </span>
+            <span className="entry-anchor-item">
+              <strong>B:</strong> {entry.anchors.b}
+            </span>
+            <span className="entry-anchor-item">
+              <strong>C:</strong> {entry.anchors.c}
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Suggestions (only for latest entry) */}
       {isLatest && entry.suggestions && entry.suggestions.length > 0 && onSuggestionSelect && (
         <div className="entry-suggestions">
           <h4 className="suggestions-subtitle">Tomorrow suggestions</h4>

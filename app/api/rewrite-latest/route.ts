@@ -81,6 +81,9 @@ export async function POST(request: NextRequest) {
 
     console.log(`Rewriting Day ${lastDay} with new event: ${userEvent}`)
 
+    // Generate request ID for logging
+    const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
+
     // Step 1: Generate summary up to previous day
     const allEntries = await loadStoryEntries()
     const summaryUpToPrevDay = await generateSummaryUpToDay(
@@ -93,7 +96,8 @@ export async function POST(request: NextRequest) {
       summaryUpToPrevDay,
       userEvent,
       lastDay,
-      false // Never allow final on rewrite
+      false, // Never allow final on rewrite
+      { requestId }
     )
 
     if (!storyText || storyText.trim().length === 0) {
@@ -103,11 +107,12 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Step 3: Generate updated metadata (summary, title, suggestions)
-    const { summary: newSummary, title, suggestions } = await updateSummaryTitleAndSuggestions(
+    // Step 3: Generate updated metadata (summary, title, anchored suggestions)
+    const { summary: newSummary, title, anchors, suggestions } = await updateSummaryTitleAndSuggestions(
       summaryUpToPrevDay,
       userEvent,
-      storyText
+      storyText,
+      { day: lastDay, revision: latestEntry.revision || 1, requestId }
     )
 
     // Step 4: Update latest entry
@@ -118,6 +123,7 @@ export async function POST(request: NextRequest) {
       userEvent,
       storyText,
       title,
+      anchors,
       suggestions,
       revision: currentRevision + 1,
       updatedAt: now,
@@ -134,6 +140,7 @@ export async function POST(request: NextRequest) {
       storyText,
       summary: newSummary,
       title,
+      anchors,
       suggestions,
       updatedAt: now,
     })

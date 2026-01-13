@@ -4,9 +4,10 @@ import { useState } from 'react'
 
 interface StoryHeaderProps {
   currentDay?: number
+  onSettingsClick?: () => void
 }
 
-export default function StoryHeader({ currentDay }: StoryHeaderProps) {
+export default function StoryHeader({ currentDay, onSettingsClick }: StoryHeaderProps) {
   const [focusMode, setFocusMode] = useState(false)
 
   return (
@@ -32,6 +33,16 @@ export default function StoryHeader({ currentDay }: StoryHeaderProps) {
             />
             <span>Focus</span>
           </label>
+          {onSettingsClick && (
+            <button
+              className="settings-gear-btn"
+              onClick={onSettingsClick}
+              aria-label="Settings"
+              title="Settings"
+            >
+              ⚙️
+            </button>
+          )}
         </div>
       </div>
     </header>

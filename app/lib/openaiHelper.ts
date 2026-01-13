@@ -1,4 +1,6 @@
 import OpenAI from 'openai'
+import { callLLMWithLog } from './logging/llmLogger'
+import { generateAnchoredSuggestions } from './story/anchoredSuggestions'
 
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -89,124 +91,164 @@ export async function generateStory(
   summary: string,
   userEvent: string,
   day: number,
-  allowFinal: boolean
+  allowFinal: boolean,
+  meta?: { requestId?: string }
 ): Promise<string> {
   const prompt = buildStoryPrompt(summary, userEvent, day, allowFinal)
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'system',
-        content: '你是一位擅长写托尔金式高奇幻故事的作家。你的风格史诗、温暖、克制。'
-      },
-      {
-        role: 'user',
-        content: prompt
+  return await callLLMWithLog(
+    {
+      op: 'chapter',
+      route: '/api/chat',
+      model,
+      input: { summary, userEvent, day, allowFinal, prompt },
+      meta: { day, ...meta },
+    },
+    async () => {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: '你是一位擅长写托尔金式高奇幻故事的作家。你的风格史诗、温暖、克制。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.7,
+        max_tokens: 1200, // Allow more tokens for Chinese text
+      })
+
+      const storyText = completion.choices[0]?.message?.content?.trim()
+
+      if (!storyText) {
+        throw new Error('No story text generated')
       }
-    ],
-    temperature: 0.7,
-    max_tokens: 1200, // Allow more tokens for Chinese text
-  })
 
-  const storyText = completion.choices[0]?.message?.content?.trim()
-
-  if (!storyText) {
-    throw new Error('No story text generated')
-  }
-
-  return storyText
+      return storyText
+    }
+  )
 }
 
 // Update story summary, generate title, and generate suggestions (combined call)
 export async function updateSummaryTitleAndSuggestions(
   oldSummary: string,
   userEvent: string,
-  storyText: string
-): Promise<{ summary: string; title: string; suggestions: string[] }> {
+  storyText: string,
+  meta?: { day?: number; revision?: number; requestId?: string }
+): Promise<{ summary: string; title: string; anchors?: { a: string; b: string; c: string }; suggestions: string[] }> {
   const prompt = buildSummaryTitleAndSuggestionsPrompt(oldSummary, userEvent, storyText)
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'system',
-        content: '你负责生成简洁准确的故事摘要、章节标题和明日事件建议。请严格按照JSON格式输出。'
-      },
-      {
-        role: 'user',
-        content: prompt
-      }
-    ],
-    temperature: 0.4, // Slightly higher for more creative suggestions
-    max_tokens: 500, // Increased for suggestions
-  })
+  return await callLLMWithLog(
+    {
+      op: 'metadata',
+      route: '/api/chat',
+      model,
+      input: { oldSummary, userEvent, storyText, prompt },
+      meta: { ...meta },
+    },
+    async () => {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: '你负责生成简洁准确的故事摘要、章节标题和明日事件建议。请严格按照JSON格式输出。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.4, // Slightly higher for more creative suggestions
+        max_tokens: 500, // Increased for suggestions
+      })
 
-  const responseText = completion.choices[0]?.message?.content?.trim()
+      const responseText = completion.choices[0]?.message?.content?.trim()
 
-  if (!responseText) {
-    throw new Error('No response generated')
-  }
+      if (!responseText) {
+        throw new Error('No response generated')
+      }
 
-  // Try to parse JSON response
-  try {
-    // Extract JSON from response (handle cases where model adds extra text)
-    const jsonMatch = responseText.match(/\{[\s\S]*\}/)
-    if (jsonMatch) {
-      const parsed = JSON.parse(jsonMatch[0])
-      
-      // Validate and clean title
-      let title = parsed.title || ''
-      title = title.trim()
-      // Remove any trailing punctuation
-      title = title.replace(/[。，、！？；：]$/g, '')
-      
-      // Validate title length (6-14 Chinese characters)
-      const charCount = Array.from(title).length
-      if (charCount < 6 || charCount > 14) {
-        title = generateFallbackTitle(storyText)
+      // Try to parse JSON response
+      try {
+        // Extract JSON from response (handle cases where model adds extra text)
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (jsonMatch) {
+          const parsed = JSON.parse(jsonMatch[0])
+          
+          // Validate and clean title
+          let title = parsed.title || ''
+          title = title.trim()
+          // Remove any trailing punctuation
+          title = title.replace(/[。，、！？；：]$/g, '')
+          
+          // Validate title length (6-14 Chinese characters)
+          const charCount = Array.from(title).length
+          if (charCount < 6 || charCount > 14) {
+            title = generateFallbackTitle(storyText)
+          }
+          
+          const summary = parsed.summary?.trim() || ''
+          
+          if (!summary) {
+            throw new Error('No summary in response')
+          }
+          
+          // Validate and clean suggestions
+          let suggestions = parsed.suggestions || []
+          if (!Array.isArray(suggestions)) {
+            suggestions = []
+          }
+          
+          // Ensure exactly 5 suggestions, clean them
+          suggestions = suggestions
+            .slice(0, 5)
+            .map((s: string) => String(s).trim())
+            .filter((s: string) => s.length > 0)
+          
+          // If we don't have 5, generate fallback suggestions
+          if (suggestions.length < 5) {
+            const fallbackSuggestions = generateFallbackSuggestions(storyText)
+            suggestions = [...suggestions, ...fallbackSuggestions].slice(0, 5)
+          }
+          
+          // Generate anchored suggestions after getting summary and title
+          const anchored = await generateAnchoredSuggestions(
+            summary,
+            userEvent,
+            storyText,
+            meta
+          )
+
+          return { summary, title, suggestions: anchored.suggestions, anchors: anchored.anchors }
+        }
+      } catch (error) {
+        console.error('Error parsing JSON response:', error)
       }
+
+      // Fallback: extract summary from text, generate title and suggestions
+      const summary = responseText.split('\n').find(line => line.trim().length > 10) || responseText
+      const title = generateFallbackTitle(storyText)
       
-      const summary = parsed.summary?.trim() || ''
+      // Generate anchored suggestions as fallback
+      const anchored = await generateAnchoredSuggestions(
+        summary.trim(),
+        userEvent,
+        storyText,
+        meta
+      )
       
-      if (!summary) {
-        throw new Error('No summary in response')
+      return {
+        summary: summary.trim(),
+        title,
+        anchors: anchored.anchors,
+        suggestions: anchored.suggestions
       }
-      
-      // Validate and clean suggestions
-      let suggestions = parsed.suggestions || []
-      if (!Array.isArray(suggestions)) {
-        suggestions = []
-      }
-      
-      // Ensure exactly 5 suggestions, clean them
-      suggestions = suggestions
-        .slice(0, 5)
-        .map((s: string) => String(s).trim())
-        .filter((s: string) => s.length > 0)
-      
-      // If we don't have 5, generate fallback suggestions
-      if (suggestions.length < 5) {
-        const fallbackSuggestions = generateFallbackSuggestions(storyText)
-        suggestions = [...suggestions, ...fallbackSuggestions].slice(0, 5)
-      }
-      
-      return { summary, title, suggestions }
     }
-  } catch (error) {
-    console.error('Error parsing JSON response:', error)
-  }
-
-  // Fallback: extract summary from text, generate title and suggestions
-  const summary = responseText.split('\n').find(line => line.trim().length > 10) || responseText
-  const title = generateFallbackTitle(storyText)
-  const suggestions = generateFallbackSuggestions(storyText)
-  
-  return {
-    summary: summary.trim(),
-    title,
-    suggestions
-  }
+  )
 }
 
 // Generate fallback suggestions from story text
@@ -308,29 +350,40 @@ ${summaryInput}
 
 请输出2-3句话的摘要，只输出摘要，不要其他内容。`
 
-  const completion = await openai.chat.completions.create({
-    model,
-    messages: [
-      {
-        role: 'system',
-        content: '你负责生成简洁准确的故事摘要。'
-      },
-      {
-        role: 'user',
-        content: prompt
+  return await callLLMWithLog(
+    {
+      op: 'rewrite',
+      route: '/api/rewrite-latest',
+      model,
+      input: { entries: entries.length, upToDay, prompt },
+      meta: { day: upToDay },
+    },
+    async () => {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: '你负责生成简洁准确的故事摘要。'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.3,
+        max_tokens: 200,
+      })
+
+      const summary = completion.choices[0]?.message?.content?.trim()
+
+      if (!summary) {
+        throw new Error('No summary generated')
       }
-    ],
-    temperature: 0.3,
-    max_tokens: 200,
-  })
 
-  const summary = completion.choices[0]?.message?.content?.trim()
-
-  if (!summary) {
-    throw new Error('No summary generated')
-  }
-
-  return summary
+      return summary
+    }
+  )
 }
 
 // Legacy function for backward compatibility (if needed)
