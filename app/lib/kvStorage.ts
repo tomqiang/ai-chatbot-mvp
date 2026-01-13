@@ -24,6 +24,7 @@ export interface StoryEntry {
     c: string // character state/constraint
   }
   suggestions?: string[]
+  event_keywords?: string[] // Keywords extracted from userEvent for title anchoring
 }
 
 // Redis client singleton for serverless (reused across invocations in the same container)

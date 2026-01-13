@@ -421,7 +421,20 @@ body {
   letter-spacing: -0.5px;
 }
 
+.entry-meta {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+}
+
 .entry-timestamp {
+  font-size: 12px;
+  color: #999;
+  font-weight: 400;
+}
+
+.entry-word-count {
   font-size: 12px;
   color: #999;
   font-weight: 400;

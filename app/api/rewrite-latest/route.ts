@@ -7,8 +7,7 @@ import {
   getStoryEntryByDay
 } from '@/app/lib/storyState'
 import { 
-  generateStory, 
-  updateSummaryTitleAndSuggestions,
+  generateChapterBundle,
   generateSummaryUpToDay
 } from '@/app/lib/openaiHelper'
 
@@ -84,64 +83,64 @@ export async function POST(request: NextRequest) {
     // Generate request ID for logging
     const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 
-    // Step 1: Generate summary up to previous day
+    // Generate summary up to previous day (for authoritative context)
     const allEntries = await loadStoryEntries()
     const summaryUpToPrevDay = await generateSummaryUpToDay(
       allEntries.map(e => ({ day: e.day, userEvent: e.userEvent, storyText: e.storyText })),
       lastDay
     )
 
-    // Step 2: Generate rewritten story text
-    const storyText = await generateStory(
+    // Get previous day's chapter text (if exists) for context
+    const previousDayEntry = lastDay > 1 
+      ? await getStoryEntryByDay(lastDay - 1)
+      : null
+    const latestChapterText = previousDayEntry?.storyText
+
+    // Generate complete chapter bundle in a single LLM call
+    const bundle = await generateChapterBundle(
       summaryUpToPrevDay,
       userEvent,
-      lastDay,
+      latestChapterText,
       false, // Never allow final on rewrite
-      { requestId }
-    )
-
-    if (!storyText || storyText.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate story text' },
-        { status: 500 }
-      )
-    }
-
-    // Step 3: Generate updated metadata (summary, title, anchored suggestions)
-    const { summary: newSummary, title, anchors, suggestions } = await updateSummaryTitleAndSuggestions(
-      summaryUpToPrevDay,
-      userEvent,
-      storyText,
       { day: lastDay, revision: latestEntry.revision || 1, requestId }
     )
 
-    // Step 4: Update latest entry
+    // Update latest entry
     const currentRevision = latestEntry.revision || 1
     const now = new Date().toISOString()
     
     await updateStoryEntry(lastDay, {
       userEvent,
-      storyText,
-      title,
-      anchors,
-      suggestions,
+      storyText: bundle.chapter,
+      title: bundle.title,
+      anchors: {
+        a: bundle.anchors.A,
+        b: bundle.anchors.B,
+        c: bundle.anchors.C,
+      },
+      suggestions: bundle.tomorrow_suggestions.map(s => s.text),
+      event_keywords: bundle.event_keywords,
       revision: currentRevision + 1,
       updatedAt: now,
     })
 
-    // Step 5: Update story state
-    state.summary = newSummary
+    // Update story state
+    state.summary = bundle.next_story_state_summary
     await saveStoryState(state)
 
     // Return the rewritten entry
     return NextResponse.json({
       day: lastDay,
       revision: currentRevision + 1,
-      storyText,
-      summary: newSummary,
-      title,
-      anchors,
-      suggestions,
+      storyText: bundle.chapter,
+      summary: bundle.next_story_state_summary,
+      title: bundle.title,
+      anchors: {
+        a: bundle.anchors.A,
+        b: bundle.anchors.B,
+        c: bundle.anchors.C,
+      },
+      suggestions: bundle.tomorrow_suggestions.map(s => s.text),
       updatedAt: now,
     })
   } catch (error: unknown) {

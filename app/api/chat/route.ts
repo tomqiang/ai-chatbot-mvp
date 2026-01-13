@@ -4,7 +4,7 @@ import {
   saveStoryState, 
   saveStoryEntry
 } from '@/app/lib/storyState'
-import { generateStory, updateSummaryTitleAndSuggestions } from '@/app/lib/openaiHelper'
+import { generateChapterBundle } from '@/app/lib/openaiHelper'
 
 export async function POST(request: NextRequest) {
   try {
@@ -61,55 +61,49 @@ export async function POST(request: NextRequest) {
     // Generate request ID for logging
     const requestId = `${Date.now()}-${Math.random().toString(36).substring(2, 9)}`
 
-    // Step 1: Generate story text
-    const storyText = await generateStory(
+    // Generate complete chapter bundle in a single LLM call
+    const bundle = await generateChapterBundle(
       state.summary,
       userEvent,
-      currentDay,
+      undefined, // latestChapterText - not needed for new chapter
       allowFinal,
-      { requestId }
-    )
-
-    if (!storyText || storyText.trim().length === 0) {
-      return NextResponse.json(
-        { error: 'Failed to generate story text' },
-        { status: 500 }
-      )
-    }
-
-    // Step 2: Update story summary, generate title, and generate anchored suggestions
-    const { summary: newSummary, title, anchors, suggestions } = await updateSummaryTitleAndSuggestions(
-      state.summary,
-      userEvent,
-      storyText,
       { day: currentDay, requestId }
     )
 
-    // Step 3: Save story entry with title, anchors, and suggestions
+    // Save story entry
     const entry = {
       day: currentDay,
       userEvent,
-      storyText,
-      title,
-      anchors,
-      suggestions,
+      storyText: bundle.chapter,
+      title: bundle.title,
+      anchors: {
+        a: bundle.anchors.A,
+        b: bundle.anchors.B,
+        c: bundle.anchors.C,
+      },
+      suggestions: bundle.tomorrow_suggestions.map(s => s.text),
+      event_keywords: bundle.event_keywords,
       createdAt: new Date().toISOString(),
     }
     await saveStoryEntry(entry)
 
-    // Step 4: Update and save story state
+    // Update and save story state
     state.day = currentDay
-    state.summary = newSummary
+    state.summary = bundle.next_story_state_summary
     await saveStoryState(state)
 
     // Return the new story entry with updated state
     return NextResponse.json({
       day: currentDay,
-      title,
-      storyText,
-      summary: newSummary,
-      anchors,
-      suggestions,
+      title: bundle.title,
+      storyText: bundle.chapter,
+      summary: bundle.next_story_state_summary,
+      anchors: {
+        a: bundle.anchors.A,
+        b: bundle.anchors.B,
+        c: bundle.anchors.C,
+      },
+      suggestions: bundle.tomorrow_suggestions.map(s => s.text),
       updatedAt: new Date().toISOString(),
     })
   } catch (error: unknown) {

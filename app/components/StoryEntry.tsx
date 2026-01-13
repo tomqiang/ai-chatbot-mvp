@@ -33,6 +33,11 @@ export default function StoryEntry({ entry, onSuggestionSelect, onRewrite, isLat
     })
   }
 
+  const getCharacterCount = (text: string): number => {
+    // Count Chinese characters and other characters (excluding whitespace)
+    return Array.from(text.replace(/\s+/g, '')).length
+  }
+
   const handleCopy = () => {
     const titleText = entry.title ? `Day ${entry.day} · ${entry.title}` : `Day ${entry.day}`
     const text = `${titleText}\n\n${entry.userEvent}\n\n${entry.storyText}`
@@ -51,7 +56,10 @@ export default function StoryEntry({ entry, onSuggestionSelect, onRewrite, isLat
         <h2 className="entry-day">
           Day {entry.day}{entry.title ? ` · ${entry.title}` : ''}
         </h2>
-        <time className="entry-timestamp">{formatDate(entry.createdAt)}</time>
+        <div className="entry-meta">
+          <time className="entry-timestamp">{formatDate(entry.createdAt)}</time>
+          <div className="entry-word-count">{getCharacterCount(entry.storyText)} 字</div>
+        </div>
       </header>
       <div className="entry-prompt">
         <em>Today's event: {entry.userEvent}</em>

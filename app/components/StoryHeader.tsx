@@ -1,15 +1,11 @@
 'use client'
 
-import { useState } from 'react'
-
 interface StoryHeaderProps {
   currentDay?: number
   onSettingsClick?: () => void
 }
 
 export default function StoryHeader({ currentDay, onSettingsClick }: StoryHeaderProps) {
-  const [focusMode, setFocusMode] = useState(false)
-
   return (
     <header className="story-header">
       <div className="header-content">
@@ -25,14 +21,6 @@ export default function StoryHeader({ currentDay, onSettingsClick }: StoryHeader
           {currentDay !== undefined && currentDay > 0 && (
             <span className="day-badge">Day {currentDay}</span>
           )}
-          <label className="focus-toggle">
-            <input
-              type="checkbox"
-              checked={focusMode}
-              onChange={(e) => setFocusMode(e.target.checked)}
-            />
-            <span>Focus</span>
-          </label>
           {onSettingsClick && (
             <button
               className="settings-gear-btn"

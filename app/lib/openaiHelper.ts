@@ -1,4 +1,5 @@
 import OpenAI from 'openai'
+import { z } from 'zod'
 import { callLLMWithLog } from './logging/llmLogger'
 import { generateAnchoredSuggestions } from './story/anchoredSuggestions'
 
@@ -33,9 +34,45 @@ export function buildStoryPrompt(
 - 输出仅故事文本，500-900中文字符
 - 将今日事件作为旅程中的小片段融入
 - 保持角色个性和关系一致性
-- 如有危险，描述清晰的物理动作
-- 如安静，聚焦氛围和情感连续性
 - 结尾要有微妙的钩子，为明天铺垫
+
+动作密度要求（ACTION DENSITY）：
+1) 每章必须包含至少3个不同的动作节拍（action beats）。
+   - 动作节拍：可观察的物理动作或决策，改变当前情况。
+   - 包括：移动、物体交互、战斗/保护、具体魔法效果、因果序列。
+   - 不包括：内心想法、抽象情绪、通用风景描写。
+2) 至少一个动作节拍必须涉及：
+   - 一二使用魔法的具体、可视化方式（如：屏障、光、束缚、感知），
+   或
+   - 布布执行保护/战斗导向的动作（如：阻挡、掩护、清除威胁）。
+3) 微弧要求（因果链）：
+   - 情况 → 动作 → 反应 → 新情况。
+   - 章节必须以改变的状态、新线索或新约束结束（不能是"什么都没发生"的结尾）。
+
+反废话/低浪费（ANTI-FLUFF）：
+4) 环境描写仅在以下情况允许：
+   - 直接影响动作（能见度、立足点、声音、寒冷、隐藏、追踪），
+   - 引入/更新具体锚点A（地点/物体），
+   - 创建与锚点C相关的即时约束（受伤、魔法限制、时间压力）。
+   否则压缩为一句短语或省略。
+5) 连续不超过2句没有物理动作/决策/后果的句子。
+6) 每个段落必须包含至少一个：
+   - 物理动作、决策、后果或新线索。
+   如果段落没有，删除或合并为一句。
+7) 优先使用动词而非形容词：
+   - 避免连续3+个描述性形容词。
+   - 每个场景最多使用1-2个具体感官细节（如"碎石滑落"、"潮湿苔藓"），仅在影响动作时使用。
+8) 仅通过动作展现情感：
+   - 例如：挡在前面、握紧、转身、默默分享物资。
+   - 不要明确标注情感（如"他很害怕/她很感动"）。
+9) 保持精简：
+   - 目标约500-900中文字符。
+   - 不要用风景或抒情填充物来填充长度。
+
+模型自编辑检查（在最终确定章节前）：
+- 删除任何不改变情况的句子。
+- 将任何环境描写压缩为一行，除非它直接影响动作或锚点。
+- 确保章节包含>=3个动作节拍，并以具体变化/线索/约束结束。
 `
 
   return `${worldRules}
@@ -45,7 +82,425 @@ ${summary}
 
 今日事件：${userEvent}
 
-请续写故事，输出仅故事文本（500-900中文字符），不要任何说明或注释。`
+请续写故事，输出仅故事文本（700-900中文字符），不要任何说明或注释。`
+}
+
+// Build prompt for merged chapter bundle generation
+function buildChapterBundlePrompt(
+  authoritativeSummary: string,
+  todayUserEvent: string,
+  latestChapterText?: string,
+  allowFinal: boolean = false
+): string {
+  const latestChapterContext = latestChapterText 
+    ? `\n上一章结尾（参考用，保持简短）：${latestChapterText.slice(-300)}`
+    : ''
+
+  return `你是一位擅长写托尔金式高奇幻故事的作家。请根据以下信息，生成完整的章节内容、摘要、标题、锚点和明日建议。
+
+世界设定：
+- 类型：托尔金式高奇幻
+- 语调：史诗、温暖、克制（无现代俚语，无喜剧）
+- 主任务：寻找「月影宝石」（主任务不能结束，除非用户明确要求最终章节）
+- 主题：陪伴、勇气、安静的选择
+
+角色：
+- 一二（女性）：沉静、深思、擅长魔法
+- 布布（男性）：勇敢、保护性强、擅长近战
+- 关系：他们是伴侣；情感通过行动展现，而非说明
+
+权威故事摘要（长期记忆，2-3句话）：
+${authoritativeSummary}
+
+今日事件（用户输入的一句话）：
+${todayUserEvent}${latestChapterContext}
+
+动作密度要求（ACTION DENSITY）：
+1) 每章必须包含至少3个不同的动作节拍（action beats）。
+   - 动作节拍：可观察的物理动作或决策，改变当前情况。
+   - 包括：移动、物体交互、战斗/保护、具体魔法效果、因果序列。
+   - 不包括：内心想法、抽象情绪、通用风景描写。
+2) 至少一个动作节拍必须涉及：
+   - 一二使用魔法的具体、可视化方式（如：屏障、光、束缚、感知），
+   或
+   - 布布执行保护/战斗导向的动作（如：阻挡、掩护、清除威胁）。
+3) 微弧要求（因果链）：
+   - 情况 → 动作 → 反应 → 新情况。
+   - 章节必须以改变的状态、新线索或新约束结束（不能是"什么都没发生"的结尾）。
+
+多日大场面规则（MULTI-DAY SET PIECES）：
+**当今日事件暗示重大冲突或大场面时，章节必须只描绘一个阶段，不得完全解决。**
+
+重大冲突识别（如果今日事件包含以下任何一项，视为重大冲突）：
+- 提到与强大生物战斗（如：巨龙/魔王/巨兽）或"生死搏斗"
+- 提到决定性战斗、"决战"、"围攻"、"破阵"
+- 任何高风险对抗，现实需要数小时或多个阶段才能完成
+
+重大冲突日的硬性结尾规则：
+1) **禁止完全解决**：
+   - 不要击败/杀死/捕获主要敌人
+   - 不要以平静的"收尾 + 展望明天上路"结束
+2) **必须悬疑结尾**：
+   章节必须以未解决的时刻结束，自然地延续到明天，例如：
+   - 突然的反击 / 巨龙展现新能力
+   - 地形崩塌 / 火势蔓延 / 能见度丧失
+   - 武器损坏 / 盾牌开裂 / 魔法几乎耗尽
+   - 被迫撤退到特定地点/物体（与锚点A关联）
+   - 战斗中涌现新线索或约束（与锚点B/C关联）
+3) **状态变化仍必须发生**：
+   即使没有解决，章节必须以改变的情况结束：
+   - 新伤、新约束、新战术位置、新线索、危险升级
+
+重大冲突日的锚点要求：
+- anchors.B **必须**捕捉未解决的核心（例如："巨龙未露面的第二次吐息/鳞片弱点尚未确认/它在守护某物"）
+- anchors.C **必须**捕捉此阶段产生的具体限制（例如："一二魔力只够维持屏障一次/布布右臂麻木/地形逼迫他们退到石桥下"）
+- tomorrow_suggestions **必须**包含至少2个直接延续同一大场面的选项（不要切换到旅行/平静场景）
+
+非重大冲突日：
+- 正常章节可以解决小冲突，但仍不得结束主任务。
+
+反废话/低浪费（ANTI-FLUFF）：
+4) 环境描写仅在以下情况允许：
+   - 直接影响动作（能见度、立足点、声音、寒冷、隐藏、追踪），
+   - 引入/更新具体锚点A（地点/物体），
+   - 创建与锚点C相关的即时约束（受伤、魔法限制、时间压力）。
+   否则压缩为一句短语或省略。
+5) 连续不超过2句没有物理动作/决策/后果的句子。
+6) 每个段落必须包含至少一个：
+   - 物理动作、决策、后果或新线索。
+   如果段落没有，删除或合并为一句。
+7) 优先使用动词而非形容词：
+   - 避免连续3+个描述性形容词。
+   - 每个场景最多使用1-2个具体感官细节（如"碎石滑落"、"潮湿苔藓"），仅在影响动作时使用。
+8) 仅通过动作展现情感：
+   - 例如：挡在前面、握紧、转身、默默分享物资。
+   - 不要明确标注情感（如"他很害怕/她很感动"）。
+9) 章节长度要求（CRITICAL）：
+   - **chapter字段必须达到700-900中文字符，这是硬性要求。**
+   - 不要用风景或抒情填充物来填充长度，但必须通过足够的动作、对话和情节发展来达到长度要求。
+   - 如果章节太短，模型输出将被视为不合格。
+
+输出要求（按优先级）：
+**CRITICAL：chapter字段必须达到700-900中文字符，这是最重要的输出。请确保章节有足够的长度、动作密度和情节发展。如果章节少于700字符，输出将被视为失败。**
+
+1. event_keywords: 从"今日事件"中直接提取2-4个短短语（每个1-12个字符），必须是今日事件中的具体名词或动作，不要发明新词。
+2. title: 6-16个中文字符，史诗、温暖、克制的风格，符合托尔金式高奇幻，不要标点符号，不要透露主任务结局。
+   **重要约束：标题必须包含至少一个event_keywords中的关键词作为字面子串（完全匹配，区分大小写）。**
+3. chapter: **这是最重要的输出字段，必须达到700-900中文字符。** 故事文本，动作密集，低废话，符合上述所有规则。请确保章节有足够的长度和内容深度，包含至少3个动作节拍和完整的情节发展。
+4. next_story_state_summary: 2-3句话的权威摘要，涵盖整个故事至今的关键信息。
+5. anchors:
+   - A: 具体地点/物品（例如："古老的石桥"、"破损的地图"、"神秘的符文"）
+   - B: 未解决的线索/伏笔（例如："远处传来的低语"、"地图上的标记"、"一二的担忧"）
+   - C: 角色状态/限制（例如："布布的疲惫"、"魔法的消耗"、"食物的短缺"）
+6. tomorrow_suggestions: 5个明日事件建议，每个必须：
+   - 明确引用至少一个锚点（usesAnchors数组，值为["A"]、["B"]、["C"]、["A","B"]等）
+   - 包含具体的动作动词
+   - 不要透露主任务结局
+   - 不要引入过多新元素（最多1个新元素）
+   - 语调：托尔金式高奇幻，温暖、克制，无现代俚语，无表情符号
+   - **如果今日事件是重大冲突，前3个建议必须直接延续同一大场面（使用锚点B和/或C），后2个可以是其他类型**
+   - 非重大冲突日的多样性要求（按顺序）：
+     1) 安静/氛围类（引用锚点A或B）
+     2) 关系/情感类（引用锚点B或C）
+     3) 发现/伏笔类（引用锚点A或B）
+     4) 行动/危险类（引用锚点A或C）
+     5) 选择/困境类（引用锚点B或C）
+
+请严格按照以下JSON格式输出（只输出JSON，不要其他内容）：
+
+{
+  "event_keywords": ["关键词1", "关键词2", "关键词3"],
+  "title": "章节标题（必须包含至少一个event_keywords中的关键词作为字面子串）",
+  "chapter": "故事文本（**CRITICAL: 必须700-900中文字符，不能少于700字符**，动作密集，低废话，这是主要输出内容。请确保通过足够的动作、对话和情节发展来达到长度要求）",
+  "next_story_state_summary": "2-3句话的权威摘要",
+  "anchors": {
+    "A": "具体地点/物品",
+    "B": "未解决的线索/伏笔",
+    "C": "角色状态/限制"
+  },
+  "tomorrow_suggestions": [
+    { "text": "建议1", "usesAnchors": ["A"] },
+    { "text": "建议2", "usesAnchors": ["B"] },
+    { "text": "建议3", "usesAnchors": ["C"] },
+    { "text": "建议4", "usesAnchors": ["A", "B"] },
+    { "text": "建议5", "usesAnchors": ["A", "B", "C"] }
+  ]
+}`
+}
+
+// Zod schema for chapter bundle validation
+const ChapterBundleSchema = z.object({
+  event_keywords: z.array(z.string().min(1).max(12)).min(2).max(4),
+  title: z.string().min(1),
+  chapter: z.string().min(1),
+  next_story_state_summary: z.string().min(1),
+  anchors: z.object({
+    A: z.string().min(1),
+    B: z.string().min(1),
+    C: z.string().min(1),
+  }),
+  tomorrow_suggestions: z.array(
+    z.object({
+      text: z.string().min(1),
+      usesAnchors: z.array(z.enum(['A', 'B', 'C'])).min(1),
+    })
+  ).length(5),
+})
+
+export type ChapterBundle = z.infer<typeof ChapterBundleSchema>
+
+// Generate fallback title from keyword
+function generateFallbackTitleFromKeyword(kw0: string, anchorA?: string): string {
+  // Template 1: `《${kw0}》`
+  let fallbackTitle = `《${kw0}》`
+  
+  // Template 2: If anchorA exists and non-empty, try `《在${A}的${kw0}》`
+  if (anchorA && anchorA.trim().length > 0) {
+    const anchorTrimmed = anchorA.trim()
+    const combined = `在${anchorTrimmed}的${kw0}`
+    const charCount = Array.from(combined).length
+    if (charCount <= 16) {
+      fallbackTitle = `《${combined}》`
+      return fallbackTitle
+    }
+  }
+  
+  // Template 3: `《${kw0}之日》`
+  const template3 = `${kw0}之日`
+  const charCount3 = Array.from(template3).length
+  if (charCount3 <= 16) {
+    fallbackTitle = `《${template3}》`
+    return fallbackTitle
+  }
+  
+  // If template 3 is also too long, use template 1
+  return `《${kw0}》`
+}
+
+// Validate and fix title to include event keyword
+function validateAndFixTitle(
+  title: string,
+  eventKeywords: string[],
+  anchorA?: string
+): { finalTitle: string; wasFallback: boolean } {
+  const titleTrimmed = title.trim().replace(/[。，、！？；：]$/g, '')
+  const charCount = Array.from(titleTrimmed).length
+  
+  // Check if title includes at least one keyword
+  const includesKeyword = eventKeywords.some(kw => titleTrimmed.includes(kw.trim()))
+  
+  // Check length
+  if (charCount >= 6 && charCount <= 16 && includesKeyword) {
+    return { finalTitle: titleTrimmed, wasFallback: false }
+  }
+  
+  // Use fallback
+  const kw0 = eventKeywords[0]?.trim() || '事件'
+  return { finalTitle: generateFallbackTitleFromKeyword(kw0, anchorA), wasFallback: true }
+}
+
+// Generate fallback suggestions from anchors
+function generateFallbackSuggestionsFromAnchors(anchors: { A: string; B: string; C: string }): Array<{ text: string; usesAnchors: string[] }> {
+  return [
+    { text: `一二和布布在${anchors.A}附近停留，观察周围的环境`, usesAnchors: ['A'] },
+    { text: `他们讨论关于${anchors.B}的线索，思考下一步行动`, usesAnchors: ['B'] },
+    { text: `考虑到${anchors.C}，他们需要做出谨慎的决定`, usesAnchors: ['C'] },
+    { text: `在${anchors.A}，他们发现了与${anchors.B}相关的线索`, usesAnchors: ['A', 'B'] },
+    { text: `面对${anchors.C}，他们在${anchors.A}附近寻找解决${anchors.B}的方法`, usesAnchors: ['A', 'B', 'C'] },
+  ]
+}
+
+// Validate and fix suggestions
+function validateAndFixSuggestions(
+  suggestions: Array<{ text: string; usesAnchors: string[] }>,
+  anchors: { A: string; B: string; C: string }
+): Array<{ text: string; usesAnchors: string[] }> {
+  // Validate each suggestion has non-empty usesAnchors and valid anchor references
+  const validSuggestions = suggestions
+    .filter(s => s.text.trim().length > 0 && 
+                 Array.isArray(s.usesAnchors) && 
+                 s.usesAnchors.length > 0 &&
+                 s.usesAnchors.every(a => ['A', 'B', 'C'].includes(a)))
+    .slice(0, 5)
+  
+  // If we don't have 5 valid suggestions, generate fallbacks
+  if (validSuggestions.length < 5) {
+    const fallbacks = generateFallbackSuggestionsFromAnchors(anchors)
+    return [...validSuggestions, ...fallbacks].slice(0, 5)
+  }
+  
+  return validSuggestions.slice(0, 5)
+}
+
+// Compress summary to 2-3 sentences
+function compressSummary(summary: string): string {
+  const sentences = summary.split(/[。！？]/).filter(s => s.trim().length > 0)
+  if (sentences.length <= 3) {
+    return summary.trim()
+  }
+  // Take first 2-3 sentences
+  return sentences.slice(0, 3).join('。') + '。'
+}
+
+// Generate complete chapter bundle in a single LLM call
+export async function generateChapterBundle(
+  authoritativeSummary: string,
+  todayUserEvent: string,
+  latestChapterText?: string,
+  allowFinal: boolean = false,
+  meta?: { day?: number; revision?: number; requestId?: string }
+): Promise<{
+  event_keywords: string[]
+  title: string
+  chapter: string
+  next_story_state_summary: string
+  anchors: { A: string; B: string; C: string }
+  tomorrow_suggestions: Array<{ text: string; usesAnchors: string[] }>
+}> {
+  const prompt = buildChapterBundlePrompt(authoritativeSummary, todayUserEvent, latestChapterText, allowFinal)
+
+  return await callLLMWithLog(
+    {
+      op: 'chapter_bundle',
+      route: '/api/chat',
+      model,
+      input: { authoritativeSummary, todayUserEvent, latestChapterText, allowFinal, prompt },
+      meta: { ...meta },
+    },
+    async () => {
+      const completion = await openai.chat.completions.create({
+        model,
+        messages: [
+          {
+            role: 'system',
+            content: '你是一位擅长写托尔金式高奇幻故事的作家。请严格按照JSON格式输出，不要添加任何说明或注释。**重要：chapter字段必须达到700-900中文字符，这是硬性要求。如果章节太短，输出将被视为不合格。**'
+          },
+          {
+            role: 'user',
+            content: prompt
+          }
+        ],
+        temperature: 0.6,
+        max_tokens: 3000, // Increased to ensure chapter has enough tokens (700-900 chars ≈ 1400-1800 tokens, plus other fields)
+        response_format: { type: 'json_object' }, // Force JSON output
+      })
+
+      const responseText = completion.choices[0]?.message?.content?.trim()
+
+      if (!responseText) {
+        throw new Error('No response generated')
+      }
+
+      // Parse JSON response
+      try {
+        const jsonMatch = responseText.match(/\{[\s\S]*\}/)
+        if (!jsonMatch) {
+          throw new Error('No JSON found in response')
+        }
+
+        const parsed = JSON.parse(jsonMatch[0])
+        
+        // Validate with Zod
+        const validationResult = ChapterBundleSchema.safeParse(parsed)
+        
+        if (!validationResult.success) {
+          console.warn('[Chapter Bundle] Validation failed:', validationResult.error.errors)
+          // Extract what we can and use fallbacks
+          const eventKeywords = Array.isArray(parsed.event_keywords) && parsed.event_keywords.length >= 2
+            ? parsed.event_keywords.slice(0, 4).map((kw: unknown) => String(kw).trim()).filter((kw: string) => kw.length > 0 && kw.length <= 12)
+            : todayUserEvent.split(/[，。、]/).filter(p => p.trim().length > 0).slice(0, 4).map(p => p.trim().slice(0, 12))
+          
+          const anchors = parsed.anchors && typeof parsed.anchors === 'object'
+            ? {
+                A: String(parsed.anchors.A || '旅途中的发现').trim(),
+                B: String(parsed.anchors.B || '未解的谜团').trim(),
+                C: String(parsed.anchors.C || '角色的状态').trim(),
+              }
+            : { A: '旅途中的发现', B: '未解的谜团', C: '角色的状态' }
+          
+          const chapter = String(parsed.chapter || '').trim() || `一二和布布继续他们的旅程。${todayUserEvent}`
+          const summary = compressSummary(String(parsed.next_story_state_summary || authoritativeSummary).trim())
+          
+          // Validate and fix title
+          const titleValidation = validateAndFixTitle(
+            String(parsed.title || '').trim(),
+            eventKeywords.length >= 2 ? eventKeywords : [todayUserEvent.slice(0, 12)],
+            anchors.A
+          )
+          
+          // Validate and fix suggestions
+          const suggestions = Array.isArray(parsed.tomorrow_suggestions)
+            ? validateAndFixSuggestions(parsed.tomorrow_suggestions, anchors)
+            : generateFallbackSuggestionsFromAnchors(anchors)
+          
+          return {
+            event_keywords: eventKeywords.length >= 2 ? eventKeywords : [todayUserEvent.slice(0, 12)],
+            title: titleValidation.finalTitle,
+            chapter,
+            next_story_state_summary: summary,
+            anchors,
+            tomorrow_suggestions: suggestions,
+          }
+        }
+
+        // Validated data - apply server-side fixes
+        const validated = validationResult.data
+        
+        // Validate chapter length
+        const chapterText = validated.chapter.trim()
+        const chapterCharCount = Array.from(chapterText.replace(/\s+/g, '')).length
+        
+        if (chapterCharCount < 500) {
+          console.warn(`[Chapter Bundle] Chapter too short: ${chapterCharCount} chars (target: 700-900), requestId=${meta?.requestId}, day=${meta?.day}`)
+        }
+        
+        // Validate and fix title
+        const titleValidation = validateAndFixTitle(
+          validated.title,
+          validated.event_keywords,
+          validated.anchors.A
+        )
+        
+        // Compress summary if needed
+        const compressedSummary = compressSummary(validated.next_story_state_summary)
+        
+        // Validate and fix suggestions
+        const fixedSuggestions = validateAndFixSuggestions(
+          validated.tomorrow_suggestions,
+          validated.anchors
+        )
+        
+        // Log fallback if used
+        if (titleValidation.wasFallback && meta?.requestId) {
+          console.log(`[Title Fallback] requestId=${meta.requestId}, day=${meta.day}`)
+        }
+
+        return {
+          event_keywords: validated.event_keywords,
+          title: titleValidation.finalTitle,
+          chapter: chapterText,
+          next_story_state_summary: compressedSummary,
+          anchors: validated.anchors,
+          tomorrow_suggestions: fixedSuggestions,
+        }
+      } catch (error) {
+        console.error('Error parsing chapter bundle JSON:', error)
+        // Complete fallback
+        const eventKeywords = todayUserEvent.split(/[，。、]/).filter(p => p.trim().length > 0).slice(0, 4).map(p => p.trim().slice(0, 12))
+        const anchors = { A: '旅途中的发现', B: '未解的谜团', C: '角色的状态' }
+        const titleValidation = validateAndFixTitle('', eventKeywords.length >= 2 ? eventKeywords : ['事件'], anchors.A)
+        
+        return {
+          event_keywords: eventKeywords.length >= 2 ? eventKeywords : ['事件'],
+          title: titleValidation.finalTitle,
+          chapter: `一二和布布继续他们的旅程。${todayUserEvent}`,
+          next_story_state_summary: authoritativeSummary,
+          anchors,
+          tomorrow_suggestions: generateFallbackSuggestionsFromAnchors(anchors),
+        }
+      }
+    }
+  )
 }
 
 // Combined summary + title + suggestions update prompt
@@ -64,8 +519,11 @@ export function buildSummaryTitleAndSuggestionsPrompt(
 
 要求：
 1. 摘要：2-3句话，涵盖整个故事至今的关键信息
-2. 标题：6-14个中文字符，史诗、温暖、克制的风格，符合托尔金式高奇幻，不要标点符号，不要透露主任务结局
-3. 建议：5个明日事件选项，每个选项一句话（中文），要求：
+2. 事件关键词提取（event_keywords）：从"今日事件"中直接提取2-4个短短语（每个1-12个字符），必须是今日事件中的具体名词或动作，不要发明新词。例如："一二在森林中发现了一处古老的遗迹" → ["森林", "发现", "古老遗迹"]
+3. 标题：6-16个中文字符，史诗、温暖、克制的风格，符合托尔金式高奇幻，不要标点符号，不要透露主任务结局。
+   **重要约束：标题必须包含至少一个event_keywords中的关键词作为字面子串（完全匹配，区分大小写）。**
+   优先使用具体名词/动作，避免纯抽象标题（除非仍包含关键词子串）。
+4. 建议：5个明日事件选项，每个选项一句话（中文），要求：
    - 与故事连续，符合当前情节发展
    - 不要透露主任务结局，不要引入过多新元素（最多1个新元素）
    - 语调：托尔金式高奇幻，温暖、克制，无现代俚语，无表情符号
@@ -78,7 +536,8 @@ export function buildSummaryTitleAndSuggestionsPrompt(
 
 请以JSON格式输出：
 {
-  "title": "章节标题",
+  "event_keywords": ["关键词1", "关键词2", "关键词3"],
+  "title": "章节标题（必须包含至少一个event_keywords中的关键词作为字面子串）",
   "summary": "更新后的摘要",
   "suggestions": ["建议1", "建议2", "建议3", "建议4", "建议5"]
 }
@@ -138,7 +597,7 @@ export async function updateSummaryTitleAndSuggestions(
   userEvent: string,
   storyText: string,
   meta?: { day?: number; revision?: number; requestId?: string }
-): Promise<{ summary: string; title: string; anchors?: { a: string; b: string; c: string }; suggestions: string[] }> {
+): Promise<{ summary: string; title: string; anchors?: { a: string; b: string; c: string }; suggestions: string[]; event_keywords?: string[] }> {
   const prompt = buildSummaryTitleAndSuggestionsPrompt(oldSummary, userEvent, storyText)
 
   return await callLLMWithLog(
@@ -179,22 +638,75 @@ export async function updateSummaryTitleAndSuggestions(
         if (jsonMatch) {
           const parsed = JSON.parse(jsonMatch[0])
           
+          const summary = parsed.summary?.trim() || ''
+          
+          if (!summary) {
+            throw new Error('No summary in response')
+          }
+          
+          // Parse and validate event_keywords
+          let eventKeywords: string[] = []
+          if (Array.isArray(parsed.event_keywords)) {
+            eventKeywords = parsed.event_keywords
+              .map((kw: unknown) => String(kw).trim())
+              .filter((kw: string) => kw.length > 0)
+          }
+          
+          // If no event_keywords provided, try to extract from userEvent as fallback
+          if (eventKeywords.length === 0) {
+            // Simple extraction: split by common separators and take meaningful parts
+            const parts = userEvent.split(/[，。、]/).filter(p => p.trim().length > 0)
+            eventKeywords = parts.slice(0, 4).map(p => p.trim().slice(0, 12))
+          }
+          
+          // Generate anchors first (needed for title validation with anchorA)
+          const anchored = await generateAnchoredSuggestions(
+            summary,
+            userEvent,
+            storyText,
+            meta
+          )
+          
           // Validate and clean title
           let title = parsed.title || ''
           title = title.trim()
           // Remove any trailing punctuation
           title = title.replace(/[。，、！？；：]$/g, '')
           
-          // Validate title length (6-14 Chinese characters)
+          // Validate title length (6-16 Chinese characters) and keyword constraint
           const charCount = Array.from(title).length
-          if (charCount < 6 || charCount > 14) {
-            title = generateFallbackTitle(storyText)
+          let titleValidation: ReturnType<typeof ensureTitleAnchoredToEvent>
+          
+          if (charCount >= 6 && charCount <= 16 && eventKeywords.length >= 2) {
+            // Validate title includes keyword and use fallback if needed
+            titleValidation = ensureTitleAnchoredToEvent(
+              title,
+              eventKeywords,
+              anchored.anchors?.a
+            )
+          } else {
+            // Title length invalid or no keywords, use fallback
+            if (eventKeywords.length >= 1) {
+              titleValidation = ensureTitleAnchoredToEvent(
+                title,
+                eventKeywords,
+                anchored.anchors?.a
+              )
+            } else {
+              // No valid keywords, use story-based fallback
+              titleValidation = {
+                finalTitle: generateFallbackTitle(storyText),
+                wasFallback: true,
+                selectedKeyword: undefined
+              }
+            }
           }
           
-          const summary = parsed.summary?.trim() || ''
+          const finalTitle = titleValidation.finalTitle
           
-          if (!summary) {
-            throw new Error('No summary in response')
+          // Log fallback if used (lightweight, no secrets)
+          if (titleValidation.wasFallback && meta?.requestId) {
+            console.log(`[Title Fallback] requestId=${meta.requestId}, day=${meta.day}, keyword=${titleValidation.selectedKeyword || 'N/A'}`)
           }
           
           // Validate and clean suggestions
@@ -214,16 +726,14 @@ export async function updateSummaryTitleAndSuggestions(
             const fallbackSuggestions = generateFallbackSuggestions(storyText)
             suggestions = [...suggestions, ...fallbackSuggestions].slice(0, 5)
           }
-          
-          // Generate anchored suggestions after getting summary and title
-          const anchored = await generateAnchoredSuggestions(
-            summary,
-            userEvent,
-            storyText,
-            meta
-          )
 
-          return { summary, title, suggestions: anchored.suggestions, anchors: anchored.anchors }
+          return { 
+            summary, 
+            title: finalTitle, 
+            suggestions: anchored.suggestions, 
+            anchors: anchored.anchors,
+            event_keywords: eventKeywords.length >= 2 ? eventKeywords : undefined
+          }
         }
       } catch (error) {
         console.error('Error parsing JSON response:', error)
@@ -231,7 +741,6 @@ export async function updateSummaryTitleAndSuggestions(
 
       // Fallback: extract summary from text, generate title and suggestions
       const summary = responseText.split('\n').find(line => line.trim().length > 10) || responseText
-      const title = generateFallbackTitle(storyText)
       
       // Generate anchored suggestions as fallback
       const anchored = await generateAnchoredSuggestions(
@@ -241,11 +750,19 @@ export async function updateSummaryTitleAndSuggestions(
         meta
       )
       
+      // Try to extract keywords from userEvent for fallback title
+      const parts = userEvent.split(/[，。、]/).filter(p => p.trim().length > 0)
+      const fallbackKeywords = parts.slice(0, 4).map(p => p.trim().slice(0, 12))
+      const titleValidation = fallbackKeywords.length >= 1
+        ? ensureTitleAnchoredToEvent('', fallbackKeywords, anchored.anchors?.a)
+        : { finalTitle: generateFallbackTitle(storyText), wasFallback: true, selectedKeyword: undefined }
+      
       return {
         summary: summary.trim(),
-        title,
+        title: titleValidation.finalTitle,
         anchors: anchored.anchors,
-        suggestions: anchored.suggestions
+        suggestions: anchored.suggestions,
+        event_keywords: fallbackKeywords.length >= 2 ? fallbackKeywords : undefined
       }
     }
   )
@@ -294,6 +811,83 @@ export async function updateSummaryAndTitle(
 ): Promise<{ summary: string; title: string }> {
   const result = await updateSummaryTitleAndSuggestions(oldSummary, userEvent, storyText)
   return { summary: result.summary, title: result.title }
+}
+
+// Ensure title is anchored to event keywords with validation and fallback
+function ensureTitleAnchoredToEvent(
+  title: string,
+  eventKeywords: string[],
+  anchorA?: string
+): { finalTitle: string; wasFallback: boolean; selectedKeyword?: string } {
+  // Validate event_keywords: length 2-4, each 1-12 chars, no duplicates
+  const validKeywords = eventKeywords
+    .filter((kw, idx, arr) => {
+      const trimmed = kw.trim()
+      const charCount = Array.from(trimmed).length
+      return trimmed.length > 0 && 
+             charCount >= 1 && 
+             charCount <= 12 && 
+             arr.indexOf(kw) === idx // no duplicates
+    })
+    .slice(0, 4) // max 4
+  
+  // Helper to generate fallback title using template priority
+  const generateFallbackTitleFromKeyword = (kw0: string): string => {
+    // Template 1: `《${kw0}》`
+    let fallbackTitle = `《${kw0}》`
+    
+    // Template 2: If anchorA exists and non-empty, try `《在${A}的${kw0}》`
+    if (anchorA && anchorA.trim().length > 0) {
+      const anchorTrimmed = anchorA.trim()
+      const combined = `在${anchorTrimmed}的${kw0}`
+      const charCount = Array.from(combined).length
+      if (charCount <= 16) {
+        fallbackTitle = `《${combined}》`
+        return fallbackTitle
+      }
+      // If template 2 is too long, fall through to template 3
+    }
+    
+    // Template 3: `《${kw0}之日》`
+    const template3 = `${kw0}之日`
+    const charCount3 = Array.from(template3).length
+    if (charCount3 <= 16) {
+      fallbackTitle = `《${template3}》`
+      return fallbackTitle
+    }
+    
+    // If template 3 is also too long, use template 1
+    return `《${kw0}》`
+  }
+  
+  if (validKeywords.length < 2) {
+    // Not enough valid keywords, use fallback
+    const kw0 = validKeywords[0]?.trim() || '事件'
+    const fallbackTitle = generateFallbackTitleFromKeyword(kw0)
+    return { finalTitle: fallbackTitle, wasFallback: true, selectedKeyword: kw0 }
+  }
+  
+  // Validate title includes at least one keyword substring
+  const titleTrimmed = title.trim()
+  const includesKeyword = validKeywords.some(kw => titleTrimmed.includes(kw.trim()))
+  
+  if (!includesKeyword) {
+    // Fallback: use template with first keyword
+    const kw0 = validKeywords[0].trim()
+    const fallbackTitle = generateFallbackTitleFromKeyword(kw0)
+    return { finalTitle: fallbackTitle, wasFallback: true, selectedKeyword: kw0 }
+  }
+  
+  // Title is valid, but ensure it's within 6-16 characters
+  const finalCharCount = Array.from(titleTrimmed).length
+  if (finalCharCount < 6 || finalCharCount > 16) {
+    // Title length invalid, use fallback
+    const kw0 = validKeywords[0].trim()
+    const fallbackTitle = generateFallbackTitleFromKeyword(kw0)
+    return { finalTitle: fallbackTitle, wasFallback: true, selectedKeyword: kw0 }
+  }
+  
+  return { finalTitle: titleTrimmed, wasFallback: false }
 }
 
 // Generate fallback title from story text
