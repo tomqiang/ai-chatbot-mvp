@@ -110,6 +110,29 @@ Edit `app/api/chat/route.ts` to modify:
 - `temperature`: Controls randomness (0-2)
 - `max_tokens`: Maximum response length
 
+## iOS Standalone Mode (PWA)
+
+This app is configured to run in standalone mode when added to iPhone Home Screen:
+
+1. **Add to Home Screen:**
+   - Open the app in Safari on iPhone
+   - Tap Share → Add to Home Screen
+   - The app will launch without Safari's navigation bars
+
+2. **Icon Requirements:**
+   - Place icon files in `/public` directory:
+     - `icon-192.png` (192x192 pixels)
+     - `icon-512.png` (512x512 pixels)
+   - These icons are referenced in `app/manifest.ts`
+
+3. **Important Note:**
+   - If you update the manifest or meta tags, users must **remove the existing Home Screen icon and re-add it** for changes to take effect
+   - iOS caches the app configuration, so old settings may persist until re-added
+
+4. **Safe Area Support:**
+   - The app includes CSS safe-area insets to prevent content from being hidden behind the iPhone home indicator
+   - Fixed bottom elements automatically account for safe areas
+
 ## License
 
 MIT

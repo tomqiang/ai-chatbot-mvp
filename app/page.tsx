@@ -45,6 +45,22 @@ export default function Home() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
   const entriesEndRef = useRef<HTMLDivElement>(null)
 
+  // Debug utility: detect standalone mode (dev only)
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const isStandalone = window.matchMedia('(display-mode: standalone)').matches
+      const isIOSStandalone = (navigator as any).standalone === true
+      const isStandaloneMode = isStandalone || isIOSStandalone
+      
+      console.log('[PWA Debug] Standalone mode:', {
+        isStandalone,
+        isIOSStandalone,
+        isStandaloneMode,
+        userAgent: navigator.userAgent,
+      })
+    }
+  }, [])
+
   const handleDataCleared = () => {
     // Reset all state
     setEntries([])
