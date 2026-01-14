@@ -1,11 +1,14 @@
 'use client'
 
+import Link from 'next/link'
+
 interface StoryHeaderProps {
   currentDay?: number
   onSettingsClick?: () => void
+  onBackToLibrary?: () => void
 }
 
-export default function StoryHeader({ currentDay, onSettingsClick }: StoryHeaderProps) {
+export default function StoryHeader({ currentDay, onSettingsClick, onBackToLibrary }: StoryHeaderProps) {
   return (
     <header className="story-header">
       <div className="header-content">
@@ -20,6 +23,16 @@ export default function StoryHeader({ currentDay, onSettingsClick }: StoryHeader
           </div>
           {currentDay !== undefined && currentDay > 0 && (
             <span className="day-badge">Day {currentDay}</span>
+          )}
+          {onBackToLibrary && (
+            <Link
+              href="/"
+              className="back-to-library-btn"
+              aria-label="Back to Library"
+              title="Back to Library"
+            >
+              📚 Library
+            </Link>
           )}
           {onSettingsClick && (
             <button

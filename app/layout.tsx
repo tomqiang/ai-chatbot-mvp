@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
+import { IosStandaloneGuard } from './components/IosStandaloneGuard'
 
 export const metadata: Metadata = {
   title: 'Moonshadow Chronicle',
@@ -26,7 +27,10 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en">
-      <body>{children}</body>
+      <body>
+        <IosStandaloneGuard />
+        {children}
+      </body>
     </html>
   )
 }

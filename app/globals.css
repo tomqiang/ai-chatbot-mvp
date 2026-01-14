@@ -22,9 +22,18 @@ body {
     linear-gradient(rgba(0,0,0,0.02) 1px, transparent 1px);
   background-size: 20px 20px;
   min-height: 100vh;
-  min-height: calc(100vh - env(safe-area-inset-bottom));
   padding: 0;
+}
+
+/* iOS Standalone Mode: Apply safe-area padding only in standalone mode
+ * This prevents content from being hidden behind the iPhone notch/status bar
+ * when the app is launched from the home screen (standalone mode).
+ * In normal Safari browser mode, no extra padding is applied.
+ */
+.ios-standalone body {
+  padding-top: env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
+  min-height: calc(100vh - env(safe-area-inset-top) - env(safe-area-inset-bottom));
 }
 
 /* Chronicle App Layout */
@@ -43,6 +52,11 @@ body {
   position: sticky;
   top: 0;
   z-index: 100;
+}
+
+/* iOS Standalone Mode: Add safe-area padding to header */
+.ios-standalone .story-header {
+  padding-top: calc(20px + env(safe-area-inset-top));
 }
 
 .header-content {
@@ -977,7 +991,7 @@ body {
   position: fixed;
   top: 0;
   right: 0;
-  bottom: env(safe-area-inset-bottom);
+  bottom: 0;
   width: 90%;
   max-width: 600px;
   background: white;
@@ -986,6 +1000,11 @@ body {
   display: flex;
   flex-direction: column;
   animation: slideInRight 0.3s ease;
+}
+
+/* iOS Standalone Mode: Add safe-area padding to settings drawer */
+.ios-standalone .settings-drawer {
+  bottom: env(safe-area-inset-bottom);
 }
 
 @keyframes slideInRight {
@@ -1120,6 +1139,27 @@ body {
   color: #888;
   font-size: 14px;
   margin: 0;
+}
+
+.back-to-library-btn {
+  padding: 6px 12px;
+  background: rgba(255, 255, 255, 0.15);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  border-radius: 6px;
+  color: white;
+  font-size: 13px;
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+  transition: all 0.2s;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.back-to-library-btn:hover {
+  background: rgba(255, 255, 255, 0.25);
+  border-color: rgba(255, 255, 255, 0.4);
 }
 
 .settings-gear-btn {
