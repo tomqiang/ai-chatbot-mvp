@@ -1,13 +1,39 @@
 // World registry for story creation
+export interface WorldSettings {
+  genre: string
+  tone: string[]
+  coreLoop: string
+  actionStyle: string[]
+  boundaryRules: string[]
+  entityPolicy: {
+    newNamedCharacters: 'forbidden' | 'limited' | 'allowed'
+    newNamedPlaces: 'forbidden' | 'limited' | 'allowed'
+  }
+  longArc: string
+  setPiece: string[]
+}
+
+export interface WorldExamples {
+  todayUserEvent: string
+  expectedEmphasis: string[]
+  anchorShapeHint?: {
+    A: string
+    B: string
+    C: string
+  }
+}
+
 export interface World {
   id: string
   displayName: string
   description: string
   initialSummary: string
   promptSnippet: string // Additional prompt context injected into chapter generation
-  // Optional fields for narrative boundaries and style control
-  actionStyle?: string // Defines preferred action types and style for this world
-  worldBoundaryRules?: string // Rules about narrative boundaries (travel, locations, scope)
+  settings: WorldSettings
+  examples: WorldExamples
+  // Optional helpers for existing logic
+  actionStyle?: string
+  worldBoundaryRules?: string
   entityPolicy?: {
     newNamedCharacters: 'forbidden' | 'limited' | 'allowed'
     newNamedPlaces: 'forbidden' | 'limited' | 'allowed'
@@ -42,6 +68,45 @@ export const WORLDS: World[] = [
     entityPolicy: {
       newNamedCharacters: 'forbidden',
       newNamedPlaces: 'forbidden',
+    },
+    settings: {
+      genre: '托尔金式高奇幻',
+      tone: ['史诗', '温暖', '克制'],
+      coreLoop: '旅途选择 → 遇险解决 → 追寻线索',
+      actionStyle: [
+        '侦察与绕行',
+        '自然生存与资源调整',
+        '保护伴侣与突破地形限制',
+      ],
+      boundaryRules: [
+        '聚焦旅途与古老遗迹',
+        '避免频繁引入新命名角色/地点',
+        '场景限定在荒野、森林、山脉、废墟',
+      ],
+      entityPolicy: {
+        newNamedCharacters: 'forbidden',
+        newNamedPlaces: 'forbidden',
+      },
+      longArc: '逐日递进的线索披露与资源耗散，保持旅途节奏',
+      setPiece: [
+        '第一天：发现异常遗迹或符文',
+        '后续：探查机关/古碑 → 遭遇危机 → 新限制/线索',
+      ],
+    },
+    examples: {
+      todayUserEvent:
+        '他们在夜里发现一个被封锁的入口，入口另一侧传来断断续续的异常信号。',
+      expectedEmphasis: [
+        '行动偏向侦察、绕行、触碰遗迹机关与野外应对',
+        '异常会被解释为符文、低语或古老回响，而非科技信号',
+        '结尾更可能落在‘遗迹入口/符号线索/地形限制’的钩子上',
+        '锚点A多为遗迹/石门/古道；B多为符文与传说线索；C多为体力/魔力/夜色限制',
+      ],
+      anchorShapeHint: {
+        A: '古老的石门或遗迹入口',
+        B: '断续低语般的符文回响',
+        C: '夜色与魔力消耗带来的限制',
+      },
     },
   },
   {
@@ -106,6 +171,45 @@ export const WORLDS: World[] = [
       newNamedCharacters: 'limited',
       newNamedPlaces: 'limited',
     },
+    settings: {
+      genre: '魔法学院奇幻',
+      tone: ['神秘', '克制', '紧张'],
+      coreLoop: '情报收集 → 规则试探 → 即刻应对',
+      actionStyle: [
+        '潜行与调查',
+        '施法/破解封印',
+        '短促对抗与规则压力',
+      ],
+      boundaryRules: [
+        '限制在学院及附属空间',
+        '避免远征/野外旅程',
+        '冲突以事件级为主',
+      ],
+      entityPolicy: {
+        newNamedCharacters: 'limited',
+        newNamedPlaces: 'limited',
+      },
+      longArc: '多日事件分阶段展开（异常显现 → 应对 → 新限制）',
+      setPiece: [
+        '第一天：异常或禁区波动被察觉',
+        '后续：暗中调查 → 触发对抗/封印升级 → 新规限制',
+      ],
+    },
+    examples: {
+      todayUserEvent:
+        '他们在夜里发现一个被封锁的入口，入口另一侧传来断断续续的异常信号。',
+      expectedEmphasis: [
+        '行动偏向潜行、调查、破解封印、短促对抗与规则压力',
+        '异常会被解释为禁区警报、封印波动或被隐藏的记录',
+        '结尾更可能落在‘宵禁/被发现风险/封印升级’的钩子上',
+        '锚点A多为走廊/禁区门；B多为规则与秘密线索；C多为宵禁与施法代价',
+      ],
+      anchorShapeHint: {
+        A: '禁区走廊尽头的封锁门',
+        B: '封印波动与被删改的记录',
+        C: '宵禁与被发现的风险',
+      },
+    },
   },
   {
     id: 'future_city',
@@ -167,6 +271,45 @@ export const WORLDS: World[] = [
     entityPolicy: {
       newNamedCharacters: 'limited',
       newNamedPlaces: 'limited',
+    },
+    settings: {
+      genre: '未来城市科幻',
+      tone: ['冷静', '紧张', '克制'],
+      coreLoop: '监控 → 异常确认 → 系统干预',
+      actionStyle: [
+        '扫描/接入系统',
+        '物理干预与快速移动',
+        '时间窗口争夺与权限策略',
+      ],
+      boundaryRules: [
+        '场景限定在城市结构及节点内',
+        '避免自然风景与远程旅行',
+        '冲突以系统异常与自动响应为主',
+      ],
+      entityPolicy: {
+        newNamedCharacters: 'limited',
+        newNamedPlaces: 'limited',
+      },
+      longArc: '逐日揭露系统异常 → 权限冲突 → 限时窗口压力',
+      setPiece: [
+        '第一天：监控/日志出现异常信号',
+        '后续：追踪信号源 → 权限回落/报警 → 新限制+倒计时',
+      ],
+    },
+    examples: {
+      todayUserEvent:
+        '他们在夜里发现一个被封锁的入口，入口另一侧传来断断续续的异常信号。',
+      expectedEmphasis: [
+        '行动偏向扫描、接入、绕过、物理干预与争取时间窗口',
+        '异常会被解释为系统日志不一致、权限回落或异常信号源',
+        '结尾更可能落在‘追踪计数上升/权限不足/窗口关闭’的钩子上',
+        '锚点A多为安全闸门/维护通道；B多为异常信号与日志；C多为权限/热量/倒计时限制',
+      ],
+      anchorShapeHint: {
+        A: '维护通道的安全闸门',
+        B: '断续的异常信号源',
+        C: '权限不足与追踪计数上升',
+      },
     },
   },
 ]

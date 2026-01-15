@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { WORLDS, type World } from '@/app/lib/worlds'
 import { startNewStory, continueStory } from '@/app/actions/storyActions'
 import type { StoryMeta } from '@/app/lib/storyState'
+import { WorldDetails } from '@/app/components/WorldDetails'
 
 // Get vibe tags for a world
 function getWorldVibeTags(worldId: string): string[] {
@@ -27,6 +28,7 @@ function CreateStoryContent() {
   const searchParams = useSearchParams()
   const [selectedWorldId, setSelectedWorldId] = useState<string>('')
   const [isCreating, setIsCreating] = useState(false)
+  const [detailsWorld, setDetailsWorld] = useState<World | null>(null)
   const [pastStories, setPastStories] = useState<StoryMeta[]>([])
   const [isLoadingStories, setIsLoadingStories] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -96,6 +98,10 @@ function CreateStoryContent() {
     }
   }
 
+  const handleSelectFromDetails = (worldId: string) => {
+    setSelectedWorldId(worldId)
+  }
+
   const handleViewStory = (storyId: string) => {
     router.push(`/story/${storyId}`)
   }
@@ -138,7 +144,7 @@ function CreateStoryContent() {
                 const vibeTags = getWorldVibeTags(world.id)
                 const preview = getWorldPreview(world.initialSummary)
                 return (
-                  <label
+                  <div
                     key={world.id}
                     style={{
                       display: 'flex',
@@ -147,53 +153,78 @@ function CreateStoryContent() {
                       padding: '20px',
                       border: `2px solid ${selectedWorldId === world.id ? '#667eea' : '#e8e6e3'}`,
                       borderRadius: '12px',
-                      cursor: 'pointer',
                       transition: 'all 0.2s',
                       background: selectedWorldId === world.id ? '#f0f7ff' : 'white',
                     }}
                   >
-                    <input
-                      type="radio"
-                      name="world"
-                      value={world.id}
-                      checked={selectedWorldId === world.id}
-                      onChange={(e) => setSelectedWorldId(e.target.value)}
-                      style={{ marginTop: '4px' }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                        <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#2c3e50', margin: 0 }}>
-                          {world.displayName}
-                        </h3>
-                        {vibeTags.length > 0 && (
-                          <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                            {vibeTags.map((tag, idx) => (
-                              <span
-                                key={idx}
-                                style={{
-                                  fontSize: '11px',
-                                  fontWeight: 500,
-                                  color: '#667eea',
-                                  background: '#f0f7ff',
-                                  padding: '2px 8px',
-                                  borderRadius: '12px',
-                                  border: '1px solid #e0e7ff',
-                                }}
-                              >
-                                {tag}
-                              </span>
-                            ))}
-                          </div>
-                        )}
+                    <label
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        gap: '12px',
+                        flex: 1,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      <input
+                        type="radio"
+                        name="world"
+                        value={world.id}
+                        checked={selectedWorldId === world.id}
+                        onChange={(e) => setSelectedWorldId(e.target.value)}
+                        style={{ marginTop: '4px' }}
+                      />
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                          <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#2c3e50', margin: 0 }}>
+                            {world.displayName}
+                          </h3>
+                          {vibeTags.length > 0 && (
+                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                              {vibeTags.map((tag, idx) => (
+                                <span
+                                  key={idx}
+                                  style={{
+                                    fontSize: '11px',
+                                    fontWeight: 500,
+                                    color: '#667eea',
+                                    background: '#f0f7ff',
+                                    padding: '2px 8px',
+                                    borderRadius: '12px',
+                                    border: '1px solid #e0e7ff',
+                                  }}
+                                >
+                                  {tag}
+                                </span>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '6px', lineHeight: 1.6 }}>
+                          {world.description}
+                        </p>
+                        <p style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
+                          {preview}
+                        </p>
                       </div>
-                      <p style={{ fontSize: '14px', color: '#666', marginBottom: '6px', lineHeight: 1.6 }}>
-                        {world.description}
-                      </p>
-                      <p style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
-                        {preview}
-                      </p>
-                    </div>
-                  </label>
+                    </label>
+                    <button
+                      type="button"
+                      onClick={() => setDetailsWorld(world)}
+                      style={{
+                        alignSelf: 'center',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        border: '1px solid #d6d6d6',
+                        background: 'white',
+                        fontSize: '12px',
+                        cursor: 'pointer',
+                        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
+                      }}
+                    >
+                      查看设定
+                    </button>
+                  </div>
                 )
               })}
             </div>
@@ -216,6 +247,15 @@ function CreateStoryContent() {
               {isCreating ? 'Creating...' : 'Start New Story'}
             </button>
           </section>
+
+          {detailsWorld && (
+            <WorldDetails
+              world={detailsWorld}
+              open={Boolean(detailsWorld)}
+              onClose={() => setDetailsWorld(null)}
+              onSelect={handleSelectFromDetails}
+            />
+          )}
 
           {/* Section B: Past Stories */}
           <section>
