@@ -1,362 +1,259 @@
 'use client'
 
-import { useState, useEffect, Suspense } from 'react'
-import { useRouter, useSearchParams } from 'next/navigation'
-import { WORLDS, type World } from '@/app/lib/worlds'
-import { startNewStory, continueStory } from '@/app/actions/storyActions'
-import type { StoryMeta } from '@/app/lib/storyState'
-import { WorldDetails } from '@/app/components/WorldDetails'
+import Link from 'next/link'
 
-// Get vibe tags for a world
-function getWorldVibeTags(worldId: string): string[] {
-  const tagMap: Record<string, string[]> = {
-    middle_earth: ['史诗旅途', '高奇幻'],
-    wizard_school: ['学院秘闻', '规则与禁区'],
-    future_city: ['系统与权限', '异常信号'],
-  }
-  return tagMap[worldId] || []
+interface AppItem {
+  id: string
+  name: string
+  desc: string
+  href: string
+  icon: string
+  gradient: string
 }
 
-// Get preview from initialSummary (first sentence)
-function getWorldPreview(initialSummary: string): string {
-  const firstSentence = initialSummary.split(/[。！？]/)[0] || initialSummary
-  return firstSentence.trim()
-}
+const APPS: AppItem[] = [
+  {
+    id: 'story',
+    name: '故事书',
+    desc: '创作你的奇幻故事，在多个世界中展开冒险。每天一句话，AI 帮你续写精彩章节。',
+    href: '/apps/story',
+    icon: '📖',
+    gradient: 'linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%)',
+  },
+  {
+    id: 'decider',
+    name: '一二布布决策转盘',
+    desc: '当一二和布布意见不一致时，用可爱的转盘决定：听谁的，或者折中。',
+    href: '/apps/decider',
+    icon: '🎡',
+    gradient: 'linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)',
+  },
+]
 
-function CreateStoryContent() {
-  const router = useRouter()
-  const searchParams = useSearchParams()
-  const [selectedWorldId, setSelectedWorldId] = useState<string>('')
-  const [isCreating, setIsCreating] = useState(false)
-  const [detailsWorld, setDetailsWorld] = useState<World | null>(null)
-  const [pastStories, setPastStories] = useState<StoryMeta[]>([])
-  const [isLoadingStories, setIsLoadingStories] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [isContinuing, setIsContinuing] = useState<string | null>(null)
-
-  useEffect(() => {
-    // Check for error in query params
-    const errorParam = searchParams.get('error')
-    if (errorParam) {
-      setError(errorParam)
-    }
-    loadPastStories()
-  }, [searchParams])
-
-  const loadPastStories = async () => {
-    try {
-      const response = await fetch('/api/stories')
-      if (response.ok) {
-        const data = await response.json()
-        setPastStories(data.stories || [])
-      }
-    } catch (error) {
-      console.error('Error loading past stories:', error)
-    } finally {
-      setIsLoadingStories(false)
-    }
-  }
-
-  const handleStartNewStory = async () => {
-    if (!selectedWorldId) {
-      setError('Please select a world')
-      return
-    }
-
-    setIsCreating(true)
-    setError(null)
-
-    try {
-      const result = await startNewStory(selectedWorldId)
-      if (result.error) {
-        setError(result.error)
-      } else if (result.storyId) {
-        router.push(`/story/${result.storyId}`)
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to create story')
-    } finally {
-      setIsCreating(false)
-    }
-  }
-
-  const handleContinueStory = async (storyId: string) => {
-    setIsContinuing(storyId)
-    setError(null)
-
-    try {
-      const result = await continueStory(storyId)
-      if (result.error) {
-        setError(result.error)
-      } else if (result.storyId) {
-        router.push(`/story/${result.storyId}`)
-      }
-    } catch (error) {
-      setError(error instanceof Error ? error.message : 'Failed to continue story')
-    } finally {
-      setIsContinuing(null)
-    }
-  }
-
-  const handleSelectFromDetails = (worldId: string) => {
-    setSelectedWorldId(worldId)
-  }
-
-  const handleViewStory = (storyId: string) => {
-    router.push(`/story/${storyId}`)
-  }
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString)
-    return date.toLocaleDateString('zh-CN', {
-      year: 'numeric',
-      month: 'short',
-      day: 'numeric',
-    })
-  }
-
+function ChevronIcon() {
   return (
-    <div className="chronicle-app">
-      <header className="story-header">
-        <div className="header-content">
-          <div className="header-main">
-            <h1 className="chronicle-title">Moonshadow Chronicle</h1>
-            <p className="quest-subtitle">Story Library</p>
-          </div>
-        </div>
-      </header>
-
-      <main className="chronicle-main">
-        <div className="chronicle-content" style={{ maxWidth: '900px', margin: '0 auto' }}>
-          {error && (
-            <div className="chronicle-error" style={{ marginBottom: '24px' }}>
-              <p>❌ {error}</p>
-            </div>
-          )}
-
-          {/* Section A: Create Story */}
-          <section style={{ marginBottom: '48px' }}>
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#2c3e50', marginBottom: '24px' }}>
-              Create New Story
-            </h2>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-              {WORLDS.map((world) => {
-                const vibeTags = getWorldVibeTags(world.id)
-                const preview = getWorldPreview(world.initialSummary)
-                return (
-                  <div
-                    key={world.id}
-                    style={{
-                      display: 'flex',
-                      alignItems: 'flex-start',
-                      gap: '12px',
-                      padding: '20px',
-                      border: `2px solid ${selectedWorldId === world.id ? '#667eea' : '#e8e6e3'}`,
-                      borderRadius: '12px',
-                      transition: 'all 0.2s',
-                      background: selectedWorldId === world.id ? '#f0f7ff' : 'white',
-                    }}
-                  >
-                    <label
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        gap: '12px',
-                        flex: 1,
-                        cursor: 'pointer',
-                      }}
-                    >
-                      <input
-                        type="radio"
-                        name="world"
-                        value={world.id}
-                        checked={selectedWorldId === world.id}
-                        onChange={(e) => setSelectedWorldId(e.target.value)}
-                        style={{ marginTop: '4px' }}
-                      />
-                      <div style={{ flex: 1 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '8px', flexWrap: 'wrap' }}>
-                          <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#2c3e50', margin: 0 }}>
-                            {world.displayName}
-                          </h3>
-                          {vibeTags.length > 0 && (
-                            <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                              {vibeTags.map((tag, idx) => (
-                                <span
-                                  key={idx}
-                                  style={{
-                                    fontSize: '11px',
-                                    fontWeight: 500,
-                                    color: '#667eea',
-                                    background: '#f0f7ff',
-                                    padding: '2px 8px',
-                                    borderRadius: '12px',
-                                    border: '1px solid #e0e7ff',
-                                  }}
-                                >
-                                  {tag}
-                                </span>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                        <p style={{ fontSize: '14px', color: '#666', marginBottom: '6px', lineHeight: 1.6 }}>
-                          {world.description}
-                        </p>
-                        <p style={{ fontSize: '13px', color: '#888', fontStyle: 'italic', margin: 0, lineHeight: 1.5 }}>
-                          {preview}
-                        </p>
-                      </div>
-                    </label>
-                    <button
-                      type="button"
-                      onClick={() => setDetailsWorld(world)}
-                      style={{
-                        alignSelf: 'center',
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        border: '1px solid #d6d6d6',
-                        background: 'white',
-                        fontSize: '12px',
-                        cursor: 'pointer',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.08)',
-                      }}
-                    >
-                      查看设定
-                    </button>
-                  </div>
-                )
-              })}
-            </div>
-            <button
-              onClick={handleStartNewStory}
-              disabled={!selectedWorldId || isCreating}
-              style={{
-                marginTop: '24px',
-                padding: '12px 24px',
-                background: selectedWorldId && !isCreating ? 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)' : '#ccc',
-                color: 'white',
-                border: 'none',
-                borderRadius: '8px',
-                fontSize: '16px',
-                fontWeight: 600,
-                cursor: selectedWorldId && !isCreating ? 'pointer' : 'not-allowed',
-                transition: 'all 0.2s',
-              }}
-            >
-              {isCreating ? 'Creating...' : 'Start New Story'}
-            </button>
-          </section>
-
-          {detailsWorld && (
-            <WorldDetails
-              world={detailsWorld}
-              open={Boolean(detailsWorld)}
-              onClose={() => setDetailsWorld(null)}
-              onSelect={handleSelectFromDetails}
-            />
-          )}
-
-          {/* Section B: Past Stories */}
-          <section>
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#2c3e50', marginBottom: '24px' }}>
-              Past Stories
-            </h2>
-            {isLoadingStories ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                Loading stories...
-              </div>
-            ) : pastStories.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-                No past stories yet. Create your first story above!
-              </div>
-            ) : (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {pastStories.map((story) => {
-                  const world = WORLDS.find(w => w.id === story.worldId) || WORLDS[0]
-                  return (
-                    <div
-                      key={story.storyId}
-                      style={{
-                        padding: '20px',
-                        border: '1px solid #e8e6e3',
-                        borderRadius: '12px',
-                        background: 'white',
-                        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08)',
-                      }}
-                    >
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
-                        <div style={{ flex: 1 }}>
-                          <h3 style={{ fontSize: '18px', fontWeight: 600, color: '#2c3e50', marginBottom: '4px' }}>
-                            {story.title || world.displayName}
-                          </h3>
-                          <p style={{ fontSize: '14px', color: '#888', marginBottom: '8px' }}>
-                            {world.displayName} · Day {story.lastDay} · {formatDate(story.createdAt)}
-                          </p>
-                          {story.lastSummary && (
-                            <p style={{ fontSize: '14px', color: '#666', lineHeight: 1.6, marginTop: '8px' }}>
-                              {story.lastSummary.slice(0, 100)}...
-                            </p>
-                          )}
-                        </div>
-                      </div>
-                      <div style={{ display: 'flex', gap: '12px', marginTop: '16px' }}>
-                        <button
-                          onClick={() => handleViewStory(story.storyId)}
-                          style={{
-                            padding: '8px 16px',
-                            background: '#f5f5f5',
-                            border: '1px solid #e0e0e0',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            color: '#666',
-                            cursor: 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          View
-                        </button>
-                        <button
-                          onClick={() => handleContinueStory(story.storyId)}
-                          disabled={isContinuing === story.storyId}
-                          style={{
-                            padding: '8px 16px',
-                            background: isContinuing === story.storyId ? '#ccc' : 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                            border: 'none',
-                            borderRadius: '6px',
-                            fontSize: '14px',
-                            color: 'white',
-                            cursor: isContinuing === story.storyId ? 'not-allowed' : 'pointer',
-                            transition: 'all 0.2s',
-                          }}
-                        >
-                          {isContinuing === story.storyId ? 'Loading...' : 'Continue'}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </section>
-        </div>
-      </main>
-    </div>
+    <svg
+      width="20"
+      height="20"
+      viewBox="0 0 20 20"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      aria-hidden="true"
+    >
+      <path
+        d="M7.5 15L12.5 10L7.5 5"
+        stroke="currentColor"
+        strokeWidth="1.5"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
-export default function Home() {
+export default function LauncherPage() {
   return (
-    <Suspense fallback={
-      <div className="chronicle-app">
-        <main className="chronicle-main">
-          <div className="chronicle-content" style={{ textAlign: 'center', padding: '40px', color: '#888' }}>
-            Loading...
+    <div className="launcher-page">
+      {/* Header */}
+      <header className="launcher-header">
+        <div className="header-content">
+          <h1 className="launcher-title">应用中心</h1>
+          <p className="launcher-subtitle">选择一个应用开始</p>
+        </div>
+      </header>
+
+      {/* App List */}
+      <main className="launcher-main">
+        <div className="app-list">
+          {APPS.map((app) => (
+            <Link
+              key={app.id}
+              href={app.href}
+              className="app-row"
+              aria-label={`打开 ${app.name}`}
+            >
+              <div className="app-icon" style={{ background: app.gradient }}>{app.icon}</div>
+              <div className="app-info">
+                <h2 className="app-name">{app.name}</h2>
+                <p className="app-desc">{app.desc}</p>
+              </div>
+              <div className="app-chevron">
+                <ChevronIcon />
+              </div>
+            </Link>
+          ))}
+        </div>
+
+        {APPS.length === 0 && (
+          <div className="empty-state">
+            <p>暂无可用应用</p>
           </div>
-        </main>
-      </div>
-    }>
-      <CreateStoryContent />
-    </Suspense>
+        )}
+      </main>
+
+      <style jsx>{`
+        .launcher-page {
+          min-height: 100vh;
+          background: #f8f9fa;
+        }
+
+        .launcher-header {
+          background: linear-gradient(135deg, #1e293b 0%, #334155 100%);
+          color: white;
+          padding: 48px 16px;
+        }
+
+        .header-content {
+          max-width: 720px;
+          margin: 0 auto;
+          text-align: center;
+        }
+
+        .launcher-title {
+          font-size: 32px;
+          font-weight: 700;
+          margin: 0 0 8px 0;
+          letter-spacing: -0.5px;
+        }
+
+        .launcher-subtitle {
+          font-size: 16px;
+          margin: 0;
+          opacity: 0.85;
+          font-weight: 400;
+        }
+
+        .launcher-main {
+          max-width: 720px;
+          margin: 0 auto;
+          padding: 24px 16px;
+        }
+
+        .app-list {
+          display: flex;
+          flex-direction: column;
+          gap: 12px;
+        }
+
+        .app-row {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 16px;
+          background: white;
+          border-radius: 12px;
+          border: 1px solid #e5e7eb;
+          text-decoration: none;
+          color: inherit;
+          transition: all 0.2s ease;
+          box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+        }
+
+        .app-row:hover {
+          border-color: #d1d5db;
+          background: #fafafa;
+          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+        }
+
+        .app-row:active {
+          background: #f3f4f6;
+          transform: scale(0.99);
+        }
+
+        .app-row:focus {
+          outline: none;
+          box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.3);
+          border-color: #6366f1;
+        }
+
+        .app-icon {
+          flex-shrink: 0;
+          width: 56px;
+          height: 56px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          border-radius: 12px;
+          box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+        }
+
+        .app-info {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .app-name {
+          font-size: 17px;
+          font-weight: 600;
+          color: #1f2937;
+          margin: 0 0 4px 0;
+        }
+
+        .app-desc {
+          font-size: 14px;
+          color: #6b7280;
+          margin: 0;
+          line-height: 1.5;
+          display: -webkit-box;
+          -webkit-line-clamp: 2;
+          -webkit-box-orient: vertical;
+          overflow: hidden;
+        }
+
+        .app-chevron {
+          flex-shrink: 0;
+          color: #9ca3af;
+          transition: all 0.2s ease;
+        }
+
+        .app-row:hover .app-chevron {
+          color: #6b7280;
+          transform: translateX(2px);
+        }
+
+        .empty-state {
+          text-align: center;
+          padding: 64px 24px;
+          color: #9ca3af;
+        }
+
+        @media (min-width: 640px) {
+          .launcher-header {
+            padding: 64px 24px;
+          }
+
+          .launcher-title {
+            font-size: 40px;
+          }
+
+          .launcher-subtitle {
+            font-size: 18px;
+          }
+
+          .launcher-main {
+            padding: 32px 24px 48px;
+          }
+
+          .app-row {
+            padding: 20px;
+          }
+
+          .app-icon {
+            width: 64px;
+            height: 64px;
+            font-size: 32px;
+          }
+
+          .app-name {
+            font-size: 18px;
+          }
+
+          .app-desc {
+            font-size: 15px;
+          }
+        }
+      `}</style>
+    </div>
   )
 }

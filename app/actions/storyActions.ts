@@ -1,7 +1,7 @@
 'use server'
 
-import { createStory, setActiveStoryId, getStoryMeta } from '@/app/lib/kvStorage'
-import { getWorldById } from '@/app/lib/worlds'
+import { createStory, setActiveStoryId, getStoryMeta } from '@/features/story/lib/kvStorage'
+import { getWorldById } from '@/features/story/lib/worlds'
 
 export async function startNewStory(worldId: string) {
   try {

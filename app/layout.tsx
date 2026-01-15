@@ -1,6 +1,6 @@
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
-import { IosStandaloneGuard } from './components/IosStandaloneGuard'
+import { IosStandaloneGuard } from '@/shared/ui/IosStandaloneGuard'
 
 export const metadata: Metadata = {
   title: 'Moonshadow Chronicle',

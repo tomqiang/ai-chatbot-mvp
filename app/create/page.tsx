@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 
-// Redirect /create to root (/) to maintain canonical entry point
+// Redirect /create to /apps/story to maintain canonical entry point
 export default function CreatePage() {
-  redirect('/')
+  redirect('/apps/story')
 }
