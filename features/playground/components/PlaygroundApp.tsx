@@ -41,7 +41,6 @@ export default function PlaygroundApp() {
                 display: 'flex',
                 justifyContent: 'center',
                 alignItems: 'center',
-                marginBottom: '16px',
               }}
             >
               <div
@@ -68,9 +67,6 @@ export default function PlaygroundApp() {
                 />
               </div>
             </div>
-            <p style={{ textAlign: 'center', color: '#6b7280', fontSize: '14px', margin: 0 }}>
-              🐼 这是可爱的熊猫一二的简历
-            </p>
           </div>
         </section>
 
