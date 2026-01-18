@@ -28,6 +28,14 @@ const APPS: AppItem[] = [
     icon: '🎡',
     gradient: 'linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)',
   },
+  {
+    id: 'playground',
+    name: '一二宝宝的游乐场',
+    desc: '欢迎来到游乐场！在这里可以尽情玩耍，探索各种有趣的功能。',
+    href: '/apps/playground',
+    icon: '🎠',
+    gradient: 'linear-gradient(135deg, #fbbf24 0%, #f59e0b 100%)',
+  },
 ]
 
 function ChevronIcon() {

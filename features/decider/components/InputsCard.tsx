@@ -56,7 +56,7 @@ export default function InputsCard({
 
       <div className="input-group">
         <label htmlFor="yier-plan" className="input-label">
-          🌙 一二的方案
+          🌙 一二宝宝的方案
         </label>
         <textarea
           id="yier-plan"
@@ -70,7 +70,7 @@ export default function InputsCard({
 
       <div className="input-group">
         <label htmlFor="bubu-plan" className="input-label">
-          🛡️ 布布的方案
+          🛡️ 布布坏坏的方案
         </label>
         <textarea
           id="bubu-plan"
