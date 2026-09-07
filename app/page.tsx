@@ -13,6 +13,14 @@ interface AppItem {
 
 const APPS: AppItem[] = [
   {
+    id: 'website-lab',
+    name: 'Website Lab · 网站实验室',
+    desc: '探索你的第一个网站：修改文字、颜色和布局，即时预览你的创意。',
+    href: '/apps/website-lab',
+    icon: '✳️',
+    gradient: 'linear-gradient(135deg, #165e66 0%, #69a78e 100%)',
+  },
+  {
     id: 'story',
     name: '故事书',
     desc: '创作你的奇幻故事，在多个世界中展开冒险。每天一句话，AI 帮你续写精彩章节。',
