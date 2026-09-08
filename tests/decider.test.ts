@@ -50,3 +50,19 @@ test('compromise is absent by default and its odds return to the two proposals',
     assert.equal(determineBestOf3Winner(['yier', 'bubu', 'discuss']), 'discuss')
   }
 })
+
+
+test('moving the slider right always increases Bubu odds and decreases Yier odds', () => {
+  for (const discuss of [true, false]) {
+    let previous = calculateProbabilities(0, discuss)
+    for (let bias = 1; bias <= 100; bias++) {
+      const current = calculateProbabilities(bias, discuss)
+      assert.ok(current[1].probability > previous[1].probability)
+      assert.ok(current[0].probability < previous[0].probability)
+      const bubuSegment = buildWheelSegments(bias, discuss).find(s => s.outcome.id === 'bubu')!
+      assert.ok(Math.abs((bubuSegment.endAngle - bubuSegment.startAngle) / 360 - current[1].probability) < 1e-10)
+      previous = current
+    }
+    assert.equal(previous[1].probability, discuss ? 0.9 : 1)
+  }
+})

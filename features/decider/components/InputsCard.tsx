@@ -97,7 +97,7 @@ export default function InputsCard({
           </button>
         </div>
         <div className="slider-container">
-          <span className="slider-label">一二</span>
+          <span className="slider-label">← 一二</span>
           <input
             id="bias-slider"
             type="range"
@@ -107,14 +107,21 @@ export default function InputsCard({
             onChange={handleSliderChange}
             className="slider"
             aria-label="偏向调节"
+            aria-valuetext={`一二 ${yierPercent}%，布布 ${bubuPercent}%`}
+            aria-describedby="bias-help"
+            dir="ltr"
           />
-          <span className="slider-label">布布</span>
+          <span className="slider-label">布布 →</span>
         </div>
         <div className="slider-info">
           <span className="slider-percent yier">一二 {yierPercent}%</span>
           <span className="slider-percent bubu">布布 {bubuPercent}%</span>
-          {allowDiscuss && <span>再聊 10%</span>}
+
         </div>
+        <p id="bias-help" className="bias-help">
+          向左更偏向一二，向右更偏向布布。以上为单次概率。
+          {allowDiscuss && ' 再聊10分钟占 10%。'}
+        </p>
       </div>
 
       <div className="toggles">
@@ -252,6 +259,13 @@ export default function InputsCard({
           border-radius: 50%;
           cursor: pointer;
           box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+        }
+
+        .bias-help {
+          margin-top: 10px;
+          font-size: 12px;
+          color: #6b7280;
+          line-height: 1.6;
         }
 
         .slider-info {
