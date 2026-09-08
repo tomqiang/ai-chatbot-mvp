@@ -1,11 +1,12 @@
 // Outcome types and probability logic for the decision wheel
 
-export type OutcomeId = 'yier' | 'bubu' | 'compromise' | 'discuss'
+export type OutcomeId = 'yier' | 'bubu' | 'discuss'
 
 export interface Outcome {
   id: OutcomeId
   label: string
   emoji: string
+  image?: string
   color: string
   resultTitle: string
   instruction: string
@@ -15,26 +16,20 @@ export const OUTCOMES: Record<OutcomeId, Outcome> = {
   yier: {
     id: 'yier',
     label: '听一二',
-    emoji: '🌙',
+    emoji: '🐼',
+    image: '/decider/yier.jpeg',
     color: '#667eea',
-    resultTitle: '月光裁定：听一二的',
+    resultTitle: '一二赢啦！听一二的',
     instruction: '布布负责执行；一二负责补充备选。',
   },
   bubu: {
     id: 'bubu',
     label: '听布布',
-    emoji: '🛡️',
+    emoji: '🐻',
+    image: '/decider/bubu.jpeg',
     color: '#48bb78',
-    resultTitle: '盾誓裁定：听布布的',
+    resultTitle: '布布赢啦！听布布的',
     instruction: '一二负责支援；布布负责落实步骤。',
-  },
-  compromise: {
-    id: 'compromise',
-    label: '折中',
-    emoji: '✨',
-    color: '#ed8936',
-    resultTitle: '双星裁定：折中',
-    instruction: '先按一二方案做30分钟，不顺就切换到布布方案。',
   },
   discuss: {
     id: 'discuss',
@@ -63,8 +58,7 @@ export function calculateProbabilities(
   allowDiscuss: boolean
 ): { outcomeId: OutcomeId; probability: number }[] {
   const discussProb = allowDiscuss ? 0.10 : 0
-  const compromiseProb = 0.15
-  const remaining = 1 - discussProb - compromiseProb
+  const remaining = 1 - discussProb
 
   // bias 0 => yier gets all remaining
   // bias 100 => bubu gets all remaining
@@ -76,7 +70,6 @@ export function calculateProbabilities(
   const probs: { outcomeId: OutcomeId; probability: number }[] = [
     { outcomeId: 'yier', probability: yierProb },
     { outcomeId: 'bubu', probability: bubuProb },
-    { outcomeId: 'compromise', probability: compromiseProb },
   ]
 
   if (allowDiscuss) {
@@ -126,8 +119,8 @@ export function pickOutcome(bias: number, allowDiscuss: boolean): OutcomeId {
     }
   }
 
-  // Fallback (shouldn't happen)
-  return 'compromise'
+  // Rounding fallback must remain an enabled, positive-probability outcome.
+  return probs.filter(p => p.probability > 0).slice(-1)[0].outcomeId
 }
 
 /**
@@ -137,7 +130,6 @@ export function determineBestOf3Winner(results: OutcomeId[]): OutcomeId {
   const counts: Record<OutcomeId, number> = {
     yier: 0,
     bubu: 0,
-    compromise: 0,
     discuss: 0,
   }
 
@@ -162,6 +154,7 @@ export function determineBestOf3Winner(results: OutcomeId[]): OutcomeId {
     return winners[0]
   }
 
-  // Tie: default to compromise
-  return 'compromise'
+  // With three distinct results, use the last spin.
+  if (results.length === 0) throw new Error('At least one result is required')
+  return results[results.length - 1]
 }

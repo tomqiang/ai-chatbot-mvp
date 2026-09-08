@@ -34,12 +34,14 @@ export function getSegmentAtAngle(
 
 /**
  * Generate a target rotation angle that will land on the specified segment.
- * Adds multiple full rotations for visual effect.
+ * Returns an absolute rotation, accounting for previous spins.
+ * Adds multiple full clockwise rotations for visual effect.
  */
 export function generateSpinAngle(
   targetSegment: WheelSegment,
   minRotations: number = 3,
-  maxRotations: number = 5
+  maxRotations: number = 5,
+  currentRotation: number = 0
 ): number {
   // Pick a random angle within the target segment
   const segmentMidpoint = (targetSegment.startAngle + targetSegment.endAngle) / 2
@@ -57,7 +59,9 @@ export function generateSpinAngle(
     Math.random() * (maxRotations - minRotations + 1) + minRotations
   )
 
-  return baseRotation + fullRotations * 360
+  const normalizedCurrent = ((currentRotation % 360) + 360) % 360
+  const remainingRotation = (baseRotation - normalizedCurrent + 360) % 360
+  return currentRotation + remainingRotation + fullRotations * 360
 }
 
 /**

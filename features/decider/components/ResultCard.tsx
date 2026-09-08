@@ -1,5 +1,6 @@
 'use client'
 
+import OutcomeSymbol from './OutcomeSymbol'
 import { OUTCOMES, type OutcomeId } from '../lib/outcomes'
 
 interface ResultCardProps {
@@ -27,15 +28,11 @@ export default function ResultCard({
     planToShow = yierPlan
   } else if (outcomeId === 'bubu' && bubuPlan) {
     planToShow = bubuPlan
-  } else if (outcomeId === 'compromise') {
-    if (yierPlan && bubuPlan) {
-      planToShow = `一二方案：${yierPlan}\n布布方案：${bubuPlan}`
-    }
   }
 
   return (
     <div className="result-card" style={{ borderColor: outcome.color }}>
-      <div className="result-emoji">{outcome.emoji}</div>
+      <div className="result-emoji"><OutcomeSymbol id={outcomeId} size={80} /></div>
       <h3 className="result-title" style={{ color: outcome.color }}>
         {outcome.resultTitle}
       </h3>
@@ -60,7 +57,7 @@ export default function ResultCard({
                 <div key={i} className="bo3-item">
                   <span className="bo3-round">第{i + 1}次</span>
                   <span className="bo3-result" style={{ color: o.color }}>
-                    {o.emoji} {o.label}
+                    <OutcomeSymbol id={r} size={28} /> {o.label}
                   </span>
                 </div>
               )

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import { buildWheelSegments, type WheelSegment } from '../lib/outcomes'
+import { buildWheelSegments, OUTCOMES, type WheelSegment } from '../lib/outcomes'
 
 interface WheelProps {
   bias: number
@@ -21,6 +21,24 @@ export default function Wheel({
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const [segments, setSegments] = useState<WheelSegment[]>([])
 
+  const [portraits, setPortraits] = useState<Record<string, HTMLImageElement>>({})
+
+  useEffect(() => {
+    let active = true
+    const images = Object.values(OUTCOMES).filter(outcome => outcome.image).map(outcome => {
+      const image = new Image()
+      image.onload = () => {
+        if (active) setPortraits(previous => ({ ...previous, [outcome.id]: image }))
+      }
+      image.src = outcome.image!
+      return image
+    })
+    return () => {
+      active = false
+      images.forEach(image => { image.onload = null })
+    }
+  }, [])
+
   useEffect(() => {
     setSegments(buildWheelSegments(bias, allowDiscuss))
   }, [bias, allowDiscuss])
@@ -32,7 +50,8 @@ export default function Wheel({
     const ctx = canvas.getContext('2d')
     if (!ctx) return
 
-    const size = canvas.width
+    const size = 280
+    ctx.setTransform(canvas.width / size, 0, 0, canvas.height / size, 0, 0)
     const center = size / 2
     const radius = size / 2 - 4
 
@@ -41,6 +60,7 @@ export default function Wheel({
 
     // Draw segments
     for (const segment of segments) {
+      if (segment.probability <= 0) continue
       const startRad = (segment.startAngle - 90) * (Math.PI / 180)
       const endRad = (segment.endAngle - 90) * (Math.PI / 180)
 
@@ -69,15 +89,29 @@ export default function Wheel({
       ctx.textAlign = 'center'
       ctx.textBaseline = 'middle'
       
-      // Emoji
-      ctx.font = '24px sans-serif'
-      ctx.fillStyle = 'white'
-      ctx.fillText(segment.outcome.emoji, 0, -12)
+      const portrait = portraits[segment.outcome.id]
+      if (portrait) {
+        ctx.save()
+        ctx.beginPath()
+        ctx.arc(0, -14, 22, 0, Math.PI * 2)
+        ctx.clip()
+        ctx.drawImage(portrait, -22, -36, 44, 44)
+        ctx.restore()
+        ctx.beginPath()
+        ctx.arc(0, -14, 22, 0, Math.PI * 2)
+        ctx.strokeStyle = 'white'
+        ctx.lineWidth = 2
+        ctx.stroke()
+      } else {
+        ctx.font = '24px sans-serif'
+        ctx.fillStyle = 'white'
+        ctx.fillText(segment.outcome.emoji, 0, -12)
+      }
       
       // Label text
       ctx.font = 'bold 13px sans-serif'
       ctx.fillStyle = 'white'
-      ctx.fillText(segment.outcome.label, 0, 12)
+      ctx.fillText(segment.outcome.label, 0, 23)
       
       ctx.restore()
     }
@@ -96,7 +130,7 @@ export default function Wheel({
     ctx.textAlign = 'center'
     ctx.textBaseline = 'middle'
     ctx.fillText('🐾', center, center)
-  }, [segments])
+  }, [segments, portraits])
 
   return (
     <div className="wheel-container">
@@ -112,8 +146,8 @@ export default function Wheel({
       >
         <canvas
           ref={canvasRef}
-          width={280}
-          height={280}
+          width={560}
+          height={560}
           className="wheel-canvas"
         />
       </div>
@@ -145,6 +179,8 @@ export default function Wheel({
 
         .wheel-canvas {
           display: block;
+          width: 280px;
+          height: 280px;
           border-radius: 50%;
         }
       `}</style>
