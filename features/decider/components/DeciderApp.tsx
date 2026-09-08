@@ -44,10 +44,9 @@ export default function DeciderApp() {
         return
       }
 
-      const angle = generateSpinAngle(targetSegment)
       const duration = getSpinDuration()
 
-      setRotation((prev) => prev + angle)
+      setRotation((prev) => generateSpinAngle(targetSegment, 3, 5, prev))
       setSpinDuration(duration)
 
       setTimeout(() => {
@@ -126,6 +125,7 @@ export default function DeciderApp() {
         )}
 
         <InputsCard
+          disabled={appState === 'spinning'}
           title={title}
           yierPlan={yierPlan}
           bubuPlan={bubuPlan}

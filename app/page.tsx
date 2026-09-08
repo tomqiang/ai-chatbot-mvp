@@ -31,7 +31,7 @@ const APPS: AppItem[] = [
   {
     id: 'decider',
     name: '一二布布决策转盘',
-    desc: '当一二和布布意见不一致时，用可爱的转盘决定：听谁的，或者折中。',
+    desc: '当一二和布布意见不一致时，用可爱的转盘决定：听谁的，或者再聊10分钟。',
     href: '/apps/decider',
     icon: '🎡',
     gradient: 'linear-gradient(135deg, #f472b6 0%, #c084fc 50%, #60a5fa 100%)',

@@ -1,8 +1,11 @@
 'use client'
 
 import { type ChangeEvent } from 'react'
+import OutcomeSymbol from './OutcomeSymbol'
+import { calculateProbabilities } from '../lib/outcomes'
 
 interface InputsCardProps {
+  disabled?: boolean
   title: string
   yierPlan: string
   bubuPlan: string
@@ -18,6 +21,7 @@ interface InputsCardProps {
 }
 
 export default function InputsCard({
+  disabled = false,
   title,
   yierPlan,
   bubuPlan,
@@ -35,11 +39,14 @@ export default function InputsCard({
     onBiasChange(parseInt(e.target.value, 10))
   }
 
-  const yierPercent = Math.round((1 - bias / 100) * 75 + (allowDiscuss ? 0 : 7.5))
-  const bubuPercent = Math.round((bias / 100) * 75 + (allowDiscuss ? 0 : 7.5))
+  const probabilities = calculateProbabilities(bias, allowDiscuss)
+  const percentage = (id: 'yier' | 'bubu') =>
+    Number(((probabilities.find(p => p.outcomeId === id)?.probability ?? 0) * 100).toFixed(1))
+  const yierPercent = percentage('yier')
+  const bubuPercent = percentage('bubu')
 
   return (
-    <div className="inputs-card">
+    <fieldset className="inputs-card" disabled={disabled} aria-label="决策设置">
       <div className="input-group">
         <label htmlFor="dispute-title" className="input-label">
           分歧标题（可选）
@@ -56,7 +63,7 @@ export default function InputsCard({
 
       <div className="input-group">
         <label htmlFor="yier-plan" className="input-label">
-          🌙 一二宝宝的方案
+          <OutcomeSymbol id="yier" /> 一二宝宝的方案
         </label>
         <textarea
           id="yier-plan"
@@ -70,7 +77,7 @@ export default function InputsCard({
 
       <div className="input-group">
         <label htmlFor="bubu-plan" className="input-label">
-          🛡️ 布布坏坏的方案
+          <OutcomeSymbol id="bubu" /> 布布宝宝的方案
         </label>
         <textarea
           id="bubu-plan"
@@ -83,12 +90,16 @@ export default function InputsCard({
       </div>
 
       <div className="input-group">
-        <label className="input-label">
-          偏向调节
-        </label>
+        <div className="bias-heading">
+          <label htmlFor="bias-slider" className="input-label">偏向调节</label>
+          <button type="button" className="equal-odds" onClick={() => onBiasChange(50)}>
+            ⚖️ 一人一半
+          </button>
+        </div>
         <div className="slider-container">
           <span className="slider-label">一二</span>
           <input
+            id="bias-slider"
             type="range"
             min="0"
             max="100"
@@ -102,6 +113,7 @@ export default function InputsCard({
         <div className="slider-info">
           <span className="slider-percent yier">一二 {yierPercent}%</span>
           <span className="slider-percent bubu">布布 {bubuPercent}%</span>
+          {allowDiscuss && <span>再聊 10%</span>}
         </div>
       </div>
 
@@ -124,8 +136,14 @@ export default function InputsCard({
         </label>
       </div>
 
+      {bestOf3 && <p style={{ fontSize: 12, color: '#6b7280', marginTop: 12 }}>
+        三次结果各不相同时，以最后一次结果为准。
+      </p>}
+
       <style jsx>{`
         .inputs-card {
+          min-width: 0;
+          margin: 0;
           background: white;
           border-radius: 16px;
           padding: 24px;
@@ -172,6 +190,32 @@ export default function InputsCard({
           gap: 12px;
         }
 
+        .bias-heading {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 12px;
+          margin-bottom: 12px;
+        }
+
+        .bias-heading .input-label { margin-bottom: 0; }
+
+        .equal-odds {
+          padding: 7px 12px;
+          border: 1px solid #c7d2fe;
+          border-radius: 8px;
+          background: #eef2ff;
+          color: #4338ca;
+          font: inherit;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+        }
+
+        .equal-odds:hover:not(:disabled) { background: #e0e7ff; }
+        .equal-odds:focus-visible { outline: 2px solid #6366f1; outline-offset: 3px; }
+        .equal-odds:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .slider-label {
           font-size: 13px;
           color: #6b7280;
@@ -212,6 +256,9 @@ export default function InputsCard({
 
         .slider-info {
           display: flex;
+          flex-wrap: wrap;
+          gap: 8px;
+          font-size: 12px;
           justify-content: space-between;
           margin-top: 8px;
         }
@@ -261,6 +308,6 @@ export default function InputsCard({
           color: #374151;
         }
       `}</style>
-    </div>
+    </fieldset>
   )
 }
